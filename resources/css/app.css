@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+@source '../views';
+
+@theme {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+
+    --color-ink: #101014;
+    --color-paper: #e6e6ea;
+    --color-muted: #8b8b96;
+    --color-line: #23232b;
+    --color-chip: #26262e;
+    --color-chip-hover: #34343e;
+    --color-mint: #6ee7a8;
+    --color-amber: #fbbf24;
+    --color-rose: #f87171;
+    --color-idle: #4b4b56;
+}
+
+/* One-user local dashboard — dark only, no light variant to keep in sync. */
+:root {
+    color-scheme: dark;
+}
