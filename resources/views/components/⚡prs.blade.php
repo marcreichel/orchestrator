@@ -2,11 +2,16 @@
 
 use App\Support\GitHub;
 use App\Support\Workspaces;
+use Illuminate\Support\Facades\Cache;
+use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-new class extends Component
+/** Isolated so this list loads in its own request — see the issues component. */
+new #[Isolate] class extends Component
 {
+    private const CACHE = 'orchestrator.prs';
+
     /** @var array<int, array<string, mixed>> */
     public array $pullRequests = [];
 
@@ -19,9 +24,10 @@ new class extends Component
 
     public ?string $error = null;
 
+    /** Cached list first, live one via `wire:init` — see the issues component. */
     public function mount(): void
     {
-        $this->load();
+        $this->fill(Cache::get(self::CACHE) ?? ['error' => 'Loading…']);
     }
 
     #[On('reload')]
@@ -41,6 +47,8 @@ new class extends Component
                     $this->reviewed[$pullRequest['number']] = ['status' => $workspace['label']];
                 }
             }
+
+            Cache::forever(self::CACHE, $this->only('pullRequests', 'reviewed'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->pullRequests = [];
@@ -71,14 +79,9 @@ new class extends Component
 };
 ?>
 
-@placeholder
-    <div>
-        <x-section title="Review requested" empty="Loading…" />
-    </div>
-@endplaceholder
-
-<div>
-    <x-section title="Review requested" :count="count($pullRequests)" :empty="$error">
+{{-- 300s, not 5m — see the issues component. --}}
+<div wire:init="load" wire:poll.300s="load">
+    <x-section title="Review requested" :count="count($pullRequests)" :empty="$error" spinner>
         @foreach ($pullRequests as $pullRequest)
             @php($reviewed = $reviewed[$pullRequest['number']] ?? [])
             <li wire:key="{{ $pullRequest['number'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">

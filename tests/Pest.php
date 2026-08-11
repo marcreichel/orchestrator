@@ -2,6 +2,8 @@
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Livewire\Features\SupportTesting\Testable;
+use Livewire\Livewire;
 use Polyscope\Laravel\Resources\Workspace;
 use Tests\TestCase;
 
@@ -29,6 +31,16 @@ pest()->extend(TestCase::class)
 | global functions to help you to reduce the number of lines of code in your test files.
 |
 */
+
+/**
+ * A list component with its background refresh done. Mounting only reads the cache —
+ * the live fetch is what `wire:init` triggers in the browser, which the test harness
+ * doesn't do on its own.
+ */
+function loaded(string $name): Testable
+{
+    return Livewire::test($name)->call('load');
+}
 
 /**
  * Fake the two GitHub endpoints the app talks to. Every GraphQL document posts to the

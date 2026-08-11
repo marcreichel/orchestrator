@@ -1,19 +1,25 @@
 <?php
 
 use App\Support\Workspaces;
+use Illuminate\Support\Facades\Cache;
+use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-new class extends Component
+/** Isolated so this list loads in its own request — see the issues component. */
+new #[Isolate] class extends Component
 {
+    private const CACHE = 'orchestrator.workspaces';
+
     /** @var array<int, array<string, mixed>> */
     public array $workspaces = [];
 
     public ?string $error = null;
 
+    /** Cached list first, live one via `wire:init` — see the issues component. */
     public function mount(): void
     {
-        $this->load();
+        $this->fill(Cache::get(self::CACHE) ?? ['error' => 'Loading…']);
     }
 
     #[On('reload')]
@@ -22,6 +28,8 @@ new class extends Component
         try {
             $this->workspaces = Workspaces::all();
             $this->error = null;
+
+            Cache::forever(self::CACHE, $this->only('workspaces'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->workspaces = [];
@@ -42,14 +50,9 @@ new class extends Component
 };
 ?>
 
-@placeholder
-    <div>
-        <x-section title="Workspaces" empty="Loading…" />
-    </div>
-@endplaceholder
-
-<div>
-    <x-section title="Workspaces" :count="count($workspaces)" :empty="$error">
+{{-- 300s, not 5m — see the issues component. --}}
+<div wire:init="load" wire:poll.300s="load">
+    <x-section title="Workspaces" :count="count($workspaces)" :empty="$error" spinner>
         @foreach ($workspaces as $workspace)
             <li wire:key="{{ $loop->index }}-{{ $workspace['branch'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
                 {{-- previewUrl is nullable — an unlinked branch is plain text rather than a dead link.

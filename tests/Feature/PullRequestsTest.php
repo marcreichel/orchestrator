@@ -1,6 +1,5 @@
 <?php
 
-use Livewire\Livewire;
 use Polyscope\Laravel\Facades\Polyscope;
 
 beforeEach(function () {
@@ -13,7 +12,7 @@ beforeEach(function () {
 it('lists pull requests waiting on my review with their CI state', function () {
     fakeGitHub(pullRequests: [pullRequestItem(7)], checks: ['PR_7' => 'FAILURE']);
 
-    Livewire::test('prs')
+    loaded('prs')
         ->assertSet('error', null)
         ->assertSee('Pull request 7')
         ->assertSee('@octocat')
@@ -35,7 +34,7 @@ it('starts a review workspace for the pull request', function () {
     // The prompt follows as a message, once the pull request is checked out.
     Polyscope::shouldReceive('client->sendWorkspaceMessage')->once()->with('ws-7', '/my-pr-review 7');
 
-    Livewire::test('prs')
+    loaded('prs')
         ->call('review', 7)
         ->assertDispatchedTo('workspaces', 'workspace-created')
         ->assertSee('✓ review/7 · active')
@@ -50,7 +49,7 @@ it('shows the existing review workspace instead of a play button', function () {
         workspace(['branch' => 'review/7', 'pr_number' => 7, 'pr_url' => 'https://github.com/a/b/pull/7']),
     ]);
 
-    Livewire::test('prs')
+    loaded('prs')
         ->assertSee('✓ review/7 · active')
         ->assertDontSeeHtml('wire:click="review(7)"');
 });
@@ -60,7 +59,7 @@ it('reports a workspace failure on the row', function () {
 
     Polyscope::shouldReceive('createWorkspace')->andThrow(new RuntimeException('Server offline'));
 
-    Livewire::test('prs')
+    loaded('prs')
         ->call('review', 7)
         ->assertSee('✗ Server offline')
         ->assertNotDispatched('workspace-created');

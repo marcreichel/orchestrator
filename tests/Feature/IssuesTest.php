@@ -2,7 +2,6 @@
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use Livewire\Livewire;
 use Polyscope\Laravel\Facades\Polyscope;
 
 beforeEach(function () {
@@ -22,7 +21,7 @@ it('lists assigned issues without the ignored and in-flight ones', function () {
         statuses: ['I_2' => 'In Progress'],
     );
 
-    Livewire::test('issues')
+    loaded('issues')
         ->assertSet('error', null)
         ->assertCount('assigned', 1)
         ->assertSee('Issue 1')
@@ -33,7 +32,7 @@ it('lists assigned issues without the ignored and in-flight ones', function () {
 it('drops issues from the second list that are already assigned to me', function () {
     fakeGitHub(assigned: [issueItem(1)], other: [issueItem(1), issueItem(2)]);
 
-    Livewire::test('issues')
+    loaded('issues')
         ->assertCount('assigned', 1)
         ->assertCount('other', 1)
         ->assertSee('Issue 2');
@@ -53,7 +52,7 @@ it('creates the workspace before claiming the issue', function () {
     // The prompt follows as a message, once the issue is checked out.
     Polyscope::shouldReceive('client->sendWorkspaceMessage')->once()->with('ws-1', '/implement-issue 1');
 
-    Livewire::test('issues')
+    loaded('issues')
         ->call('play', 'I_1')
         ->assertDispatchedTo('workspaces', 'workspace-created')
         ->assertSee('✓ feature/1 · active')
@@ -71,7 +70,7 @@ it('keeps the workspace visible when the claim fails', function () {
     Polyscope::shouldReceive('createWorkspace')->andReturn(workspace(['branch' => 'feature/1', 'status' => 'active']));
     Polyscope::shouldReceive('client->sendWorkspaceMessage');
 
-    Livewire::test('issues')
+    loaded('issues')
         ->call('play', 'I_1')
         ->assertSee('✓ feature/1 · active')
         ->assertSee('✗ Resource not accessible by personal access token')
@@ -84,7 +83,7 @@ it('leaves the issue untouched when the workspace cannot be created', function (
 
     Polyscope::shouldReceive('createWorkspace')->andThrow(new RuntimeException('Server offline'));
 
-    Livewire::test('issues')
+    loaded('issues')
         ->call('play', 'I_1')
         ->assertSee('✗ Server offline')
         ->assertNotDispatched('workspace-created');
@@ -99,7 +98,7 @@ it('shows the existing workspace instead of a play button', function () {
         workspace(['branch' => 'feature/1', 'issue_number' => 1, 'issue_url' => 'https://github.com/a/b/issues/1']),
     ]);
 
-    Livewire::test('issues')
+    loaded('issues')
         ->assertSee('✓ feature/1 · active')
         ->assertDontSeeHtml('wire:click="play(\'I_1\')"')
         // The unplayed issue keeps its ▶.
@@ -111,7 +110,7 @@ it('keeps the issues playable when the workspace lookup fails', function () {
 
     Polyscope::shouldReceive('workspaces')->andThrow(new RuntimeException('Missing API token'));
 
-    Livewire::test('issues')
+    loaded('issues')
         ->assertSet('error', null)
         ->assertSee('Issue 1')
         ->assertSeeHtml('wire:click="play(\'I_1\')"');
@@ -120,7 +119,7 @@ it('keeps the issues playable when the workspace lookup fails', function () {
 it('drops the row once the issue is in flight', function () {
     fakeGitHub(assigned: [issueItem(1)]);
 
-    Livewire::test('issues')
+    loaded('issues')
         ->call('dismiss', 'I_1')
         ->assertCount('assigned', 0)
         ->assertSee('Nothing here.');
@@ -129,7 +128,7 @@ it('drops the row once the issue is in flight', function () {
 it('shows the failure instead of the list', function () {
     Http::fake(['api.github.com/*' => Http::response(['message' => 'Bad credentials'], 401)]);
 
-    Livewire::test('issues')
+    loaded('issues')
         ->assertCount('assigned', 0)
         ->assertSee('401');
 });

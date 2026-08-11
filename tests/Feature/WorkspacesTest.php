@@ -1,6 +1,5 @@
 <?php
 
-use Livewire\Livewire;
 use Polyscope\Laravel\Facades\Polyscope;
 
 beforeEach(function () {
@@ -14,7 +13,7 @@ it('lists only the workspaces of mapped repositories', function () {
         workspace(['repo_id' => 'somebody-elses', 'branch' => 'not-mine']),
     ]);
 
-    Livewire::test('workspaces')
+    loaded('workspaces')
         ->assertCount('workspaces', 1)
         ->assertSee('feature/1')
         ->assertSeeHtml('https://preview.test/1')
@@ -30,7 +29,7 @@ it('shows the linked issue when Polyscope returns one', function () {
         ]),
     ]);
 
-    Livewire::test('workspaces')->assertSee('#42 Fix the thing');
+    loaded('workspaces')->assertSee('#42 Fix the thing');
 });
 
 // Polyscope timestamps are UTC but carry no zone, so a wrong reading would shift the
@@ -38,7 +37,7 @@ it('shows the linked issue when Polyscope returns one', function () {
 it('reads the zoneless created_at as UTC', function () {
     Polyscope::shouldReceive('workspaces')->andReturn([workspace(['created_at' => '2026-08-08 11:18:15'])]);
 
-    Livewire::test('workspaces')
+    loaded('workspaces')
         ->assertSee('Sat, Aug 8, 2026 11:18 AM')
         // Rendering again must survive the round-trip: a Carbon nested in an array
         // property comes back from Livewire as a string.
@@ -49,7 +48,7 @@ it('reads the zoneless created_at as UTC', function () {
 it('lists a freshly played workspace without refetching', function () {
     Polyscope::shouldReceive('workspaces')->once()->andReturn([]);
 
-    Livewire::test('workspaces')
+    loaded('workspaces')
         ->assertSee('Nothing here.')
         ->dispatch('workspace-created', workspace: [
             'branch' => 'feature/9',
@@ -66,5 +65,5 @@ it('lists a freshly played workspace without refetching', function () {
 it('shows the failure instead of the list', function () {
     Polyscope::shouldReceive('workspaces')->andThrow(new RuntimeException('Missing API token'));
 
-    Livewire::test('workspaces')->assertSee('Missing API token');
+    loaded('workspaces')->assertSee('Missing API token');
 });

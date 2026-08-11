@@ -3,12 +3,18 @@
 use App\Support\Board;
 use App\Support\GitHub;
 use App\Support\Workspaces;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-new class extends Component
+// Isolated, or Livewire bundles the three lists' loads into one request and they can
+// only ever arrive together — as slow as the slowest of GitHub and Polyscope.
+new #[Isolate] class extends Component
 {
+    private const CACHE = 'orchestrator.issues';
+
     /** @var array<int, array<string, mixed>> */
     public array $assigned = [];
 
@@ -29,9 +35,14 @@ new class extends Component
 
     public ?string $error = null;
 
+    /**
+     * The last successful lists, rendered with the page itself; `wire:init` then
+     * fetches the live ones in the background. `$error` doubles as the empty text,
+     * so a cold cache says what it is waiting for.
+     */
     public function mount(): void
     {
-        $this->load();
+        $this->fill(Cache::get(self::CACHE) ?? ['error' => 'Loading…']);
     }
 
     #[On('reload')]
@@ -63,6 +74,8 @@ new class extends Component
                     $this->played[$issue['id']] = ['status' => $workspace['label']];
                 }
             }
+
+            Cache::forever(self::CACHE, $this->only('assigned', 'other', 'claim', 'played'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->assigned = $this->other = [];
@@ -119,17 +132,11 @@ new class extends Component
 };
 ?>
 
-@placeholder
-    <div class="contents">
-        <x-section title="Assigned to me" empty="Loading…" />
-        <x-section title="Other issues" empty="Loading…" />
-    </div>
-@endplaceholder
-
-{{-- `contents` so both sections are grid items of the page, not of this component. --}}
-<div class="contents">
+{{-- `contents` so both sections are grid items of the page, not of this component.
+     300s, not 5m: wire:poll only parses `ms` and `s`, so `.5m` silently polls every 2s. --}}
+<div class="contents" wire:init="load" wire:poll.300s="load">
     @foreach ([['Assigned to me', $assigned], ['Other issues', $other]] as [$title, $issues])
-        <x-section :title="$title" :count="count($issues)" :empty="$error">
+        <x-section :title="$title" :count="count($issues)" :empty="$error" spinner>
             @foreach ($issues as $issue)
                 @php($played = $played[$issue['id']] ?? [])
                 <li wire:key="{{ $issue['id'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">

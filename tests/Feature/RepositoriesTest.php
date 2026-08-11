@@ -11,7 +11,9 @@ it('lists every repository with its id', function () {
     $this->get('/repositories')
         ->assertOk()
         ->assertSee('core-ng')
-        ->assertSee('f64cd685');
+        ->assertSee('f64cd685')
+        // No Livewire here, so nothing would ever hide a spinner again.
+        ->assertDontSeeHtml('animate-spin');
 });
 
 it('shows the failure instead of an error page when Polyscope is down', function () {
