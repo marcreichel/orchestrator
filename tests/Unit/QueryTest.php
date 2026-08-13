@@ -3,13 +3,13 @@
 use App\Support\Board;
 use App\Support\GitHub;
 
-// Repos must be ORed — bare `repo:a repo:b` is an AND and matches nothing. WIP/Screening
-// and epics are excluded for every caller, so both issue lists get them.
+// Repos must be ORed — bare `repo:a repo:b` is an AND and matches nothing. WIP/Screening,
+// blocked and epics are excluded for every caller, so all three issue lists get them.
 it('scopes an issue search to the mapped repos', function () {
     expect(GitHub::issueQuery(['a/b', 'c/d'], 'assignee:@me is:issue is:open'))
-        ->toBe('(repo:a/b OR repo:c/d) -label:WIP -label:Screening -type:Epic assignee:@me is:issue is:open')
+        ->toBe('(repo:a/b OR repo:c/d) -label:WIP -label:Screening -label:blocked -type:Epic assignee:@me is:issue is:open')
         ->and(GitHub::issueQuery(['a/b'], ''))
-        ->toBe('(repo:a/b) -label:WIP -label:Screening -type:Epic');
+        ->toBe('(repo:a/b) -label:WIP -label:Screening -label:blocked -type:Epic');
 });
 
 // Same OR-scoping, but reviews are shown whatever they're labelled. `is:open` must stay:

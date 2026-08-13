@@ -48,6 +48,7 @@ function loaded(string $name): Testable
  *
  * @param  array<int, array<string, mixed>>  $assigned
  * @param  array<int, array<string, mixed>>  $other
+ * @param  array<int, array<string, mixed>>  $bugs
  * @param  array<int, array<string, mixed>>  $pullRequests
  * @param  array<string, string>  $statuses  Issue node id => board column it sits in.
  * @param  array<string, string>  $checks  Pull request node id => CI rollup state.
@@ -55,18 +56,22 @@ function loaded(string $name): Testable
 function fakeGitHub(
     array $assigned = [],
     array $other = [],
+    array $bugs = [],
     array $pullRequests = [],
     array $statuses = [],
     array $checks = [],
     ?string $claimError = null,
 ): void {
     Http::fake([
-        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $pullRequests) {
+        // The bug search is told apart by `type:Bug` — `no:assignee` won't do, the
+        // second list's own fixture query uses it too.
+        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests) {
             $url = $request->url();
 
             return Http::response(['items' => match (true) {
                 str_contains($url, 'is%3Apr') => $pullRequests,
                 str_contains($url, 'assignee%3A%40me') => $assigned,
+                str_contains($url, 'type%3ABug') => $bugs,
                 default => $other,
             }]);
         },

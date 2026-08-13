@@ -12,7 +12,7 @@ use RuntimeException;
 class GitHub
 {
     /** Not actionable yet — excluded from every issue list. */
-    private const EXCLUDED_LABELS = ['WIP', 'Screening'];
+    private const EXCLUDED_LABELS = ['WIP', 'Screening', 'blocked'];
 
     /** GitHub's rollup states, collapsed to the three things a dot can mean. */
     private const CHECKS = [

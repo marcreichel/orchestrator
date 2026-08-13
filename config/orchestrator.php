@@ -31,15 +31,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Second issue list
+    | Extra issue lists
     |--------------------------------------------------------------------------
     |
-    | A free-form search shown next to the issues assigned to me. Anything
-    | already in the assigned list is filtered out. Set to null to hide it.
+    | Free-form searches shown next to the issues assigned to me, each as its
+    | own section. They are filtered top to bottom — an issue already shown by
+    | an earlier list never repeats in a later one. Set either to null to hide
+    | that section.
     |
     */
 
     'other_issues' => 'is:open is:issue label:"✻ Claude"',
+
+    'unassigned_bugs' => 'is:open is:issue no:assignee type:Bug',
 
     /*
     |--------------------------------------------------------------------------
