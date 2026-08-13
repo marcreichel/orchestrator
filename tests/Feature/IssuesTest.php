@@ -148,6 +148,28 @@ it('drops the row once the issue is in flight', function () {
         ->assertSee('Nothing here.');
 });
 
+// `nodes(ids:)` is capped at 100, and three lists of up to 100 issues each blow past it.
+it('looks the board up in chunks of a hundred issues', function () {
+    fakeGitHub(assigned: array_map(issueItem(...), range(1, 101)));
+
+    loaded('issues')->assertCount('assigned', 101);
+
+    expect(Http::recorded(fn (Request $request): bool => str_contains(graphqlDocument($request), 'projectItems')))
+        ->toHaveCount(2);
+});
+
+// Both lists mark their played rows with it, and the workspace list renders it — one
+// fetch has to cover all three, or a refresh hits Polyscope three times over.
+it('fetches the workspaces once for every list of a refresh', function () {
+    fakeGitHub(assigned: [issueItem(1)], pullRequests: [pullRequestItem(5)]);
+
+    Polyscope::shouldReceive('workspaces')->once()->andReturn([]);
+
+    loaded('issues');
+    loaded('prs');
+    loaded('workspaces');
+});
+
 it('shows the failure instead of the list', function () {
     Http::fake(['api.github.com/*' => Http::response(['message' => 'Bad credentials'], 401)]);
 

@@ -55,18 +55,25 @@ new #[Isolate] class extends Component
 
         try {
             $board = app(Board::class);
-            $github = app(GitHub::class);
 
-            $search = function (string $key) use ($github): array {
+            // One round-trip for the three searches — a list whose query is unset is
+            // never asked for and comes back empty.
+            $query = function (string $key): ?string {
                 $query = Config::get("orchestrator.{$key}");
 
-                return is_string($query) && $query !== '' ? $github->issues($query) : [];
+                return is_string($query) && $query !== '' ? $query : null;
             };
 
+            $found = app(GitHub::class)->issues(array_filter([
+                'assigned' => 'assignee:@me is:issue is:open',
+                'other' => $query('other_issues'),
+                'bugs' => $query('unassigned_bugs'),
+            ])) + ['assigned' => [], 'other' => [], 'bugs' => []];
+
             // The extra lists are free-form, so each can overlap with the ones before it.
-            $assigned = $github->issues('assignee:@me is:issue is:open');
-            $other = self::reject($search('other_issues'), $assigned);
-            $bugs = self::reject($search('unassigned_bugs'), [...$assigned, ...$other]);
+            $assigned = $found['assigned'];
+            $other = self::reject($found['other'], $assigned);
+            $bugs = self::reject($found['bugs'], [...$assigned, ...$other]);
 
             // One board lookup for all three lists, after the overlaps are gone — the
             // status of an issue that isn't going to be shown is nobody's business.
