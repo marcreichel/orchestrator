@@ -21,6 +21,9 @@ new #[Isolate] class extends Component
     /** @var array<int, array<string, mixed>> */
     public array $other = [];
 
+    /** @var array<int, array<string, mixed>> */
+    public array $bugs = [];
+
     /** Claim checkbox state, per issue node id. */
     /** @var array<string, bool> */
     public array $claim = [];
@@ -52,39 +55,60 @@ new #[Isolate] class extends Component
 
         try {
             $board = app(Board::class);
-            $github = app(GitHub::class);
 
-            $this->assigned = $board->unblocked($github->issues('assignee:@me is:issue is:open'));
+            // One round-trip for the three searches — a list whose query is unset is
+            // never asked for and comes back empty.
+            $query = function (string $key): ?string {
+                $query = Config::get("orchestrator.{$key}");
 
-            $query = Config::get('orchestrator.other_issues');
-            $other = is_string($query) && $query !== '' ? $board->unblocked($github->issues($query)) : [];
+                return is_string($query) && $query !== '' ? $query : null;
+            };
 
-            // The second list is free-form, so it can overlap with what's already mine.
-            $mine = array_column($this->assigned, 'id');
-            $this->other = array_values(array_filter($other, fn (array $issue): bool => ! in_array($issue['id'], $mine, true)));
+            $found = app(GitHub::class)->issues(array_filter([
+                'assigned' => 'assignee:@me is:issue is:open',
+                'other' => $query('other_issues'),
+                'bugs' => $query('unassigned_bugs'),
+            ])) + ['assigned' => [], 'other' => [], 'bugs' => []];
 
-            $this->claim = array_fill_keys([...$mine, ...array_column($this->other, 'id')], true);
+            // The extra lists are free-form, so each can overlap with the ones before it.
+            $assigned = $found['assigned'];
+            $other = self::reject($found['other'], $assigned);
+            $bugs = self::reject($found['bugs'], [...$assigned, ...$other]);
+
+            // One board lookup for all three lists, after the overlaps are gone — the
+            // status of an issue that isn't going to be shown is nobody's business.
+            $kept = array_column($board->unblocked([...$assigned, ...$other, ...$bugs]), 'id');
+            $keep = fn (array $issues): array => array_values(array_filter(
+                $issues,
+                fn (array $issue): bool => in_array($issue['id'], $kept, true),
+            ));
+
+            $this->assigned = $keep($assigned);
+            $this->other = $keep($other);
+            $this->bugs = $keep($bugs);
+
+            $this->claim = array_fill_keys(array_column($this->issues(), 'id'), true);
             $this->error = null;
 
             // An issue that already has a workspace is shown as played: no ▶, no checkbox.
             $workspaces = Workspaces::byRef();
 
-            foreach ([...$this->assigned, ...$this->other] as $issue) {
+            foreach ($this->issues() as $issue) {
                 if ($workspace = $workspaces[$issue['url']] ?? null) {
                     $this->played[$issue['id']] = ['status' => $workspace['label']];
                 }
             }
 
-            Cache::forever(self::CACHE, $this->only('assigned', 'other', 'claim', 'played'));
+            Cache::forever(self::CACHE, $this->only('assigned', 'other', 'bugs', 'claim', 'played'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
-            $this->assigned = $this->other = [];
+            $this->assigned = $this->other = $this->bugs = [];
         }
     }
 
     public function play(string $id): void
     {
-        $issue = collect([...$this->assigned, ...$this->other])->firstWhere('id', $id);
+        $issue = collect($this->issues())->firstWhere('id', $id);
 
         if ($issue === null) {
             return;
@@ -126,8 +150,34 @@ new #[Isolate] class extends Component
 
         $this->assigned = array_values(array_filter($this->assigned, $keep));
         $this->other = array_values(array_filter($this->other, $keep));
+        $this->bugs = array_values(array_filter($this->bugs, $keep));
 
         unset($this->played[$id], $this->claim[$id]);
+    }
+
+    /**
+     * Every listed issue, in section order — what play(), the claim state and the
+     * workspace lookup all work on.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function issues(): array
+    {
+        return [...$this->assigned, ...$this->other, ...$this->bugs];
+    }
+
+    /**
+     * $issues minus everything an earlier list already shows.
+     *
+     * @param  array<int, array<string, mixed>>  $issues
+     * @param  array<int, array<string, mixed>>  $seen
+     * @return array<int, array<string, mixed>>
+     */
+    private static function reject(array $issues, array $seen): array
+    {
+        $ids = array_column($seen, 'id');
+
+        return array_values(array_filter($issues, fn (array $issue): bool => ! in_array($issue['id'], $ids, true)));
     }
 };
 ?>
@@ -135,7 +185,12 @@ new #[Isolate] class extends Component
 {{-- `contents` so both sections are grid items of the page, not of this component.
      300s, not 5m: wire:poll only parses `ms` and `s`, so `.5m` silently polls every 2s. --}}
 <div class="contents" wire:init="load" wire:poll.300s="load">
-    @foreach ([['Assigned to me', $assigned], ['Other issues', $other]] as [$title, $issues])
+    {{-- array_filter, so a list whose query is unset renders no section at all. --}}
+    @foreach (array_filter([
+        ['Assigned to me', $assigned],
+        config('orchestrator.other_issues') ? ['Other issues', $other] : null,
+        config('orchestrator.unassigned_bugs') ? ['Unassigned bugs', $bugs] : null,
+    ]) as [$title, $issues])
         <x-section :title="$title" :count="count($issues)" :empty="$error" spinner>
             @foreach ($issues as $issue)
                 @php($played = $played[$issue['id']] ?? [])

@@ -17,3 +17,8 @@ Workspace timestamps are UTC but carry no zone ("2026-08-08 11:18:15"), so they 
 The workspace *list* endpoint returns thin resources: `repository`, `agent` and `stats` are null, and a linked issue/PR gives back its number but not its title. Only use fields a listed workspace also has.
 
 `services.polyscope.token` must be null (not an empty string) for the SDK to fall back to the token the Polyscope desktop app stores locally — hence `env('POLYSCOPE_TOKEN') ?: null`.
+
+## An empty workspace list can mean a broken response
+The SDK maps any unreadable 200 (empty body, invalid JSON, a body without a `data` key) to an empty array instead of raising — see MakesHttpRequests::decodeResponseBody() and ManagesWorkspaces::workspaces(). So `Polyscope::workspaces()` returning nothing is indistinguishable from an account that really has no workspaces, and it is the only way a list can go silently empty (GitHub's failures all throw).
+
+Treat an empty result as suspect where it would outlive the request: the workspaces component renders it but does not write it to `orchestrator.workspaces`, so one bad answer can't keep painting an empty list on every page load. Telling the two apart for real needs the raw envelope via `Polyscope::client()->get('v1/workspaces')`, which costs the `shouldReceive('workspaces')` mocking used across the tests — not worth it so far.

@@ -8,6 +8,7 @@ beforeEach(function () {
     config()->set('orchestrator.repos', ['a/b' => 'repo-1']);
     config()->set('orchestrator.ignore', []);
     config()->set('orchestrator.other_issues', 'is:open is:issue no:assignee');
+    config()->set('orchestrator.unassigned_bugs', 'is:open is:issue no:assignee type:Bug');
 
     // Every load looks for existing workspaces; byDefault so a test can say otherwise.
     Polyscope::shouldReceive('workspaces')->andReturn([])->byDefault();
@@ -36,6 +37,28 @@ it('drops issues from the second list that are already assigned to me', function
         ->assertCount('assigned', 1)
         ->assertCount('other', 1)
         ->assertSee('Issue 2');
+});
+
+it('lists unassigned bugs in their own section', function () {
+    fakeGitHub(assigned: [issueItem(1)], bugs: [issueItem(4)]);
+
+    loaded('issues')
+        ->assertCount('bugs', 1)
+        ->assertSee('Unassigned bugs')
+        ->assertSee('Issue 4');
+
+    // The three lists share one board lookup — a per-list unblocked() call would be three.
+    expect(Http::recorded(fn (Request $request): bool => str_contains(graphqlDocument($request), 'projectItems')))
+        ->toHaveCount(1);
+});
+
+it('drops bugs the second list already shows', function () {
+    fakeGitHub(other: [issueItem(2)], bugs: [issueItem(2), issueItem(4)]);
+
+    loaded('issues')
+        ->assertCount('other', 1)
+        ->assertCount('bugs', 1)
+        ->assertSet('bugs.0.number', 4);
 });
 
 it('creates the workspace before claiming the issue', function () {
@@ -123,6 +146,28 @@ it('drops the row once the issue is in flight', function () {
         ->call('dismiss', 'I_1')
         ->assertCount('assigned', 0)
         ->assertSee('Nothing here.');
+});
+
+// `nodes(ids:)` is capped at 100, and three lists of up to 100 issues each blow past it.
+it('looks the board up in chunks of a hundred issues', function () {
+    fakeGitHub(assigned: array_map(issueItem(...), range(1, 101)));
+
+    loaded('issues')->assertCount('assigned', 101);
+
+    expect(Http::recorded(fn (Request $request): bool => str_contains(graphqlDocument($request), 'projectItems')))
+        ->toHaveCount(2);
+});
+
+// Both lists mark their played rows with it, and the workspace list renders it — one
+// fetch has to cover all three, or a refresh hits Polyscope three times over.
+it('fetches the workspaces once for every list of a refresh', function () {
+    fakeGitHub(assigned: [issueItem(1)], pullRequests: [pullRequestItem(5)]);
+
+    Polyscope::shouldReceive('workspaces')->once()->andReturn([]);
+
+    loaded('issues');
+    loaded('prs');
+    loaded('workspaces');
 });
 
 it('shows the failure instead of the list', function () {

@@ -29,7 +29,14 @@ new #[Isolate] class extends Component
             $this->workspaces = Workspaces::all();
             $this->error = null;
 
-            Cache::forever(self::CACHE, $this->only('workspaces'));
+            // The SDK turns an unreadable 200 — empty body, truncated JSON, anything
+            // without a `data` key — into an empty list rather than into a failure, so an
+            // empty refresh is the one result that can't be told from a broken one. It
+            // still renders (a list really can be empty), but it never becomes the list
+            // the next page paints, or one bad answer keeps showing up long after it.
+            if ($this->workspaces !== []) {
+                Cache::forever(self::CACHE, $this->only('workspaces'));
+            }
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->workspaces = [];

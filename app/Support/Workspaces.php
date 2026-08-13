@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Polyscope\Laravel\Facades\Polyscope;
 use Polyscope\Laravel\Resources\Workspace;
@@ -20,15 +21,22 @@ class Workspaces
      */
     public static function all(): array
     {
-        $repoIds = array_values(Config::array('orchestrator.repos'));
+        // All three lists want this on the same refresh — the issue and pull request ones
+        // to mark played rows, the workspace one to render them — and they load in
+        // separate requests, so only a cache can collapse that into one fetch. Just long
+        // enough to cover the fan-out; a failure isn't cached at all.
+        /** @var array<int, array<string, mixed>> */
+        return Cache::remember('orchestrator.workspaces.all', now()->addSeconds(15), function (): array {
+            $repoIds = array_values(Config::array('orchestrator.repos'));
 
-        /** @var array<int, Workspace> $workspaces */
-        $workspaces = Polyscope::workspaces();
+            /** @var array<int, Workspace> $workspaces */
+            $workspaces = Polyscope::workspaces();
 
-        return array_values(array_map(
-            fn (Workspace $workspace): array => self::row($workspace),
-            array_filter($workspaces, fn (Workspace $workspace): bool => in_array($workspace->repoId, $repoIds, true)),
-        ));
+            return array_values(array_map(
+                fn (Workspace $workspace): array => self::row($workspace),
+                array_filter($workspaces, fn (Workspace $workspace): bool => in_array($workspace->repoId, $repoIds, true)),
+            ));
+        });
     }
 
     /**

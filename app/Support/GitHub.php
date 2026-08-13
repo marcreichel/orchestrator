@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class GitHub
 {
     /** Not actionable yet — excluded from every issue list. */
-    private const EXCLUDED_LABELS = ['WIP', 'Screening'];
+    private const EXCLUDED_LABELS = ['WIP', 'Screening', 'blocked'];
+
+    /** GitHub's cap on `nodes(ids:)`. */
+    private const NODES_PER_QUERY = 100;
 
     /** GitHub's rollup states, collapsed to the three things a dot can mean. */
     private const CHECKS = [
@@ -34,11 +40,29 @@ class GitHub
     ) {}
 
     /**
-     * Issues matching $query across the mapped repos, minus the ignored ones.
+     * Issues matching each query across the mapped repos, minus the ignored ones, keyed
+     * the way the queries came in. Takes them all at once because the lists don't depend
+     * on each other — run one at a time their latencies just add up.
      *
+     * @param  array<string, string>  $queries
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    public function issues(array $queries): array
+    {
+        return array_map(
+            fn (array $items): array => $this->issueRows($items),
+            $this->searchMany(array_map(
+                fn (string $query): string => self::issueQuery($this->repoNames, $query),
+                $queries,
+            )),
+        );
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
-    public function issues(string $query): array
+    private function issueRows(array $items): array
     {
         $issues = array_map(fn (array $item): array => [
             'id' => (string) $item['node_id'],
@@ -51,7 +75,7 @@ class GitHub
                 'name' => (string) data_get($label, 'name'),
                 'color' => (string) data_get($label, 'color'),
             ], (array) $item['labels']),
-        ], $this->searchItems(self::issueQuery($this->repoNames, $query)));
+        ], $items);
 
         return array_values(array_filter($issues, fn (array $issue): bool => ! self::isIgnored(
             $this->ignore,
@@ -93,31 +117,35 @@ class GitHub
             return [];
         }
 
-        $data = $this->graphql(<<<'GRAPHQL'
-            query ($ids: [ID!]!) {
-              nodes(ids: $ids) {
-                ... on Issue {
-                  id
-                  projectItems(first: 20) {
-                    nodes {
-                      project { title }
-                      fieldValueByName(name: "Status") {
-                        ... on ProjectV2ItemFieldSingleSelectValue { name }
+        $statuses = [];
+
+        // `nodes(ids:)` takes at most 100 ids and the issue lists together can hand over
+        // more, so the lookup goes out in chunks.
+        foreach (array_chunk($ids, self::NODES_PER_QUERY) as $chunk) {
+            $data = $this->graphql(<<<'GRAPHQL'
+                query ($ids: [ID!]!) {
+                  nodes(ids: $ids) {
+                    ... on Issue {
+                      id
+                      projectItems(first: 20) {
+                        nodes {
+                          project { title }
+                          fieldValueByName(name: "Status") {
+                            ... on ProjectV2ItemFieldSingleSelectValue { name }
+                          }
+                        }
                       }
                     }
                   }
                 }
-              }
+                GRAPHQL, ['ids' => $chunk]);
+
+            foreach ((array) data_get($data, 'nodes', []) as $node) {
+                $item = collect((array) data_get($node, 'projectItems.nodes', []))
+                    ->firstWhere('project.title', $board);
+                $status = data_get($item, 'fieldValueByName.name');
+                $statuses[(string) data_get($node, 'id')] = is_string($status) ? $status : null;
             }
-            GRAPHQL, ['ids' => $ids]);
-
-        $statuses = [];
-
-        foreach ((array) data_get($data, 'nodes', []) as $node) {
-            $item = collect((array) data_get($node, 'projectItems.nodes', []))
-                ->firstWhere('project.title', $board);
-            $status = data_get($item, 'fieldValueByName.name');
-            $statuses[(string) data_get($node, 'id')] = is_string($status) ? $status : null;
         }
 
         return $statuses;
@@ -181,14 +209,52 @@ class GitHub
     /** @return array<int, array<string, mixed>> */
     public function searchItems(string $query): array
     {
-        $items = $this->client()->get('search/issues', [
+        return self::items($this->client()->get('search/issues', self::searchParams($query)));
+    }
+
+    /**
+     * The same search run for every query at once, keyed the way they came in.
+     *
+     * @param  array<string, string>  $queries
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    public function searchMany(array $queries): array
+    {
+        $responses = Http::pool(fn (Pool $pool): array => array_map(
+            fn (string $key): mixed => $this->configure($pool->as($key))
+                ->get('search/issues', self::searchParams($queries[$key])),
+            array_combine(array_keys($queries), array_keys($queries)),
+        ));
+
+        return array_map(function (mixed $response): array {
+            // A pool hands back the connection failure instead of throwing it.
+            if ($response instanceof Throwable) {
+                throw $response;
+            }
+
+            return self::items($response);
+        }, $responses);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function searchParams(string $query): array
+    {
+        return [
             'q' => $query,
             'sort' => 'updated',
             'order' => 'desc',
             'per_page' => 100,
             // A parenthesised `repo:a OR repo:b` only parses with advanced search on.
             'advanced_search' => 'true',
-        ])->throw()->json('items');
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private static function items(mixed $response): array
+    {
+        $items = $response instanceof Response ? $response->throw()->json('items') : null;
 
         /** @var array<int, array<string, mixed>> */
         return is_array($items) ? $items : [];
@@ -243,7 +309,13 @@ class GitHub
 
     private function client(): PendingRequest
     {
-        return Http::baseUrl('https://api.github.com')
+        return $this->configure(Http::createPendingRequest());
+    }
+
+    /** Shared by the plain client and by the requests a pool hands out. */
+    private function configure(PendingRequest $request): PendingRequest
+    {
+        return $request->baseUrl('https://api.github.com')
             ->withToken($this->token)
             ->acceptJson();
     }
