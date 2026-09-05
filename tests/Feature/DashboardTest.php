@@ -46,6 +46,7 @@ it('renders the cached lists without fetching', function () {
         // Every five minutes. Not `.5m`: wire:poll parses only `ms` and `s`, so an
         // unparsed modifier would quietly poll at the 2s default.
         ->assertSeeHtml('wire:poll.300s="load"')
-        // The header spinner runs while the background refresh is in flight.
-        ->assertSeeHtml('wire:loading class="size-3 shrink-0 animate-spin');
+        // The header spinner runs while the background refresh is in flight, and announces
+        // itself — an unlabelled one is silent to a screen reader.
+        ->assertSeeHtml('wire:loading role="status" aria-label="Refreshing"');
 });

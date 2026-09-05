@@ -15,6 +15,9 @@ new #[Isolate] class extends Component
     /** @var array<int, array<string, mixed>> */
     public array $pullRequests = [];
 
+    /** Whether GitHub had more matches than the one page the search asks for. */
+    public bool $truncated = false;
+
     /**
      * What starting a review did, per pull request number.
      *
@@ -33,14 +36,16 @@ new #[Isolate] class extends Component
     #[On('reload')]
     public function load(): void
     {
-        $this->reviewed = [];
-
         try {
-            $this->pullRequests = app(GitHub::class)->pullRequests();
+            ['items' => $this->pullRequests, 'truncated' => $this->truncated] = app(GitHub::class)->pullRequests();
             $this->error = null;
 
             // A pull request that already has a review workspace is shown as reviewed: no ▶.
+            // A dead Polyscope means "no idea", not "nothing has been reviewed" — see the
+            // issues component.
+            $numbers = array_flip(array_column($this->pullRequests, 'number'));
             $workspaces = Workspaces::byRef();
+            $this->reviewed = $workspaces === null ? array_intersect_key($this->reviewed, $numbers) : [];
 
             foreach ($this->pullRequests as $pullRequest) {
                 if ($workspace = $workspaces[$pullRequest['url']] ?? null) {
@@ -48,7 +53,7 @@ new #[Isolate] class extends Component
                 }
             }
 
-            Cache::forever(self::CACHE, $this->only('pullRequests', 'reviewed'));
+            Cache::forever(self::CACHE, $this->only('pullRequests', 'truncated', 'reviewed'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->pullRequests = [];
@@ -81,7 +86,7 @@ new #[Isolate] class extends Component
 
 {{-- 300s, not 5m — see the issues component. --}}
 <div wire:init="load" wire:poll.300s="load">
-    <x-section title="Review requested" :count="count($pullRequests)" :empty="$error" spinner>
+    <x-section title="Review requested" :count="count($pullRequests)" :truncated="$truncated" :empty="$error" spinner>
         @foreach ($pullRequests as $pullRequest)
             @php($reviewed = $reviewed[$pullRequest['number']] ?? [])
             <li wire:key="{{ $pullRequest['number'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
@@ -100,19 +105,22 @@ new #[Isolate] class extends Component
                     </span>
                 @endif
 
+                {{-- aria-label, not just title: a bare ▶ has no reliable accessible name. --}}
                 @unless (isset($reviewed['status']))
                     <button wire:click="review({{ $pullRequest['number'] }})" wire:loading.attr="disabled" title="Review"
+                            aria-label="Review pull request #{{ $pullRequest['number'] }}"
                             class="cursor-pointer rounded-md bg-chip px-2.5 py-0.5 hover:bg-chip-hover">▶</button>
                 @endunless
 
-                <span wire:loading wire:target="review({{ $pullRequest['number'] }})" class="text-sm text-mint">…</span>
+                <span wire:loading wire:target="review({{ $pullRequest['number'] }})" role="status"
+                      aria-label="Starting a workspace" class="text-sm text-mint">…</span>
 
                 @isset($reviewed['status'])
                     <span class="text-sm text-mint">{{ $reviewed['status'] }}</span>
                 @endisset
 
                 @if ($reviewed['error'] ?? null)
-                    <span class="text-sm text-rose">✗ {{ $reviewed['error'] }}</span>
+                    <span role="alert" class="text-sm text-rose">✗ {{ $reviewed['error'] }}</span>
                 @endif
             </li>
         @endforeach

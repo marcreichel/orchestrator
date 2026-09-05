@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Polyscope\Laravel\Facades\Polyscope;
 
@@ -137,6 +138,60 @@ it('keeps the issues playable when the workspace lookup fails', function () {
         ->assertSet('error', null)
         ->assertSee('Issue 1')
         ->assertSeeHtml('wire:click="play(\'I_1\')"');
+});
+
+// A dead Polyscope can't tell a played issue from an unplayed one, so a refresh during
+// the outage must not cache a run with every ✓ dropped — the next page load paints it.
+it('keeps the played marks when the workspace lookup fails', function () {
+    fakeGitHub(assigned: [issueItem(1)]);
+
+    Polyscope::shouldReceive('workspaces')->once()->andReturn([
+        workspace(['branch' => 'feature/1', 'issue_number' => 1, 'issue_url' => 'https://github.com/a/b/issues/1']),
+    ]);
+
+    loaded('issues')->assertSee('✓ feature/1 · active');
+
+    // Second refresh, same issue, Polyscope now down.
+    Cache::forget('orchestrator.workspaces.all');
+    Polyscope::shouldReceive('workspaces')->andThrow(new RuntimeException('Missing API token'));
+
+    loaded('issues')->assertSee('✓ feature/1 · active');
+
+    expect(Cache::get('orchestrator.issues')['played'])->toBe(['I_1' => ['status' => '✓ feature/1 · active']]);
+});
+
+// The five-minute poll runs load() too, so refilling every box would silently undo a
+// decision the user made minutes ago.
+it('leaves a cleared claim checkbox cleared across a refresh', function () {
+    fakeGitHub(assigned: [issueItem(1), issueItem(2)]);
+
+    $component = loaded('issues')
+        ->assertSet('claim.I_1', true)
+        ->set('claim.I_1', false)
+        ->call('load');
+
+    $component->assertSet('claim.I_1', false)
+        // The one that was never touched still defaults to checked.
+        ->assertSet('claim.I_2', true);
+});
+
+// Only the first page of a search is ever fetched, so a capped list has to say so
+// instead of reading as the whole picture.
+it('marks a list that GitHub had more matches for', function () {
+    fakeGitHub(assigned: [issueItem(1)], totalCount: 214);
+
+    loaded('issues')
+        ->assertSet('truncated.assigned', true)
+        ->assertSee('(1+)');
+});
+
+it('leaves a complete list unmarked', function () {
+    fakeGitHub(assigned: [issueItem(1)]);
+
+    loaded('issues')
+        ->assertSet('truncated.assigned', false)
+        ->assertSee('(1)')
+        ->assertDontSee('(1+)');
 });
 
 it('drops the row once the issue is in flight', function () {

@@ -45,12 +45,15 @@ class GitHub
      * on each other — run one at a time their latencies just add up.
      *
      * @param  array<string, string>  $queries
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array<string, array{items: array<int, array<string, mixed>>, truncated: bool}>
      */
     public function issues(array $queries): array
     {
         return array_map(
-            fn (array $items): array => $this->issueRows($items),
+            fn (array $page): array => [
+                'items' => $this->issueRows($page['items']),
+                'truncated' => $page['truncated'],
+            ],
             $this->searchMany(array_map(
                 fn (string $query): string => self::issueQuery($this->repoNames, $query),
                 $queries,
@@ -87,21 +90,24 @@ class GitHub
     /**
      * Pull requests waiting on my review, each with the CI rollup of its head commit.
      *
-     * @return array<int, array<string, mixed>>
+     * @return array{items: array<int, array<string, mixed>>, truncated: bool}
      */
     public function pullRequests(): array
     {
-        $items = $this->searchItems(self::prQuery($this->repoNames));
+        ['items' => $items, 'truncated' => $truncated] = $this->searchItems(self::prQuery($this->repoNames));
         $checks = $this->checkStates(array_map(fn (array $item): string => (string) $item['node_id'], $items));
 
-        return array_map(fn (array $item): array => [
-            'number' => (int) $item['number'],
-            'title' => (string) $item['title'],
-            'url' => (string) $item['html_url'],
-            'repo' => Str::after((string) $item['repository_url'], '/repos/'),
-            'author' => (string) data_get($item, 'user.login'),
-            'check' => $checks[(string) $item['node_id']] ?? null,
-        ], $items);
+        return [
+            'items' => array_map(fn (array $item): array => [
+                'number' => (int) $item['number'],
+                'title' => (string) $item['title'],
+                'url' => (string) $item['html_url'],
+                'repo' => Str::after((string) $item['repository_url'], '/repos/'),
+                'author' => (string) data_get($item, 'user.login'),
+                'check' => $checks[(string) $item['node_id']] ?? null,
+            ], $items),
+            'truncated' => $truncated,
+        ];
     }
 
     /**
@@ -206,17 +212,17 @@ class GitHub
         return (array) data_get($body, 'data', []);
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /** @return array{items: array<int, array<string, mixed>>, truncated: bool} */
     public function searchItems(string $query): array
     {
-        return self::items($this->client()->get('search/issues', self::searchParams($query)));
+        return self::page($this->client()->get('search/issues', self::searchParams($query)));
     }
 
     /**
      * The same search run for every query at once, keyed the way they came in.
      *
      * @param  array<string, string>  $queries
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array<string, array{items: array<int, array<string, mixed>>, truncated: bool}>
      */
     public function searchMany(array $queries): array
     {
@@ -232,7 +238,7 @@ class GitHub
                 throw $response;
             }
 
-            return self::items($response);
+            return self::page($response);
         }, $responses);
     }
 
@@ -251,13 +257,25 @@ class GitHub
         ];
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private static function items(mixed $response): array
+    /**
+     * The one page of results a search returns, and whether GitHub had more behind it.
+     * Only the first page is ever asked for, so without the flag a capped list would
+     * read as the whole picture.
+     *
+     * @return array{items: array<int, array<string, mixed>>, truncated: bool}
+     */
+    private static function page(mixed $response): array
     {
-        $items = $response instanceof Response ? $response->throw()->json('items') : null;
+        $body = $response instanceof Response ? $response->throw()->json() : null;
+        $items = data_get($body, 'items');
 
-        /** @var array<int, array<string, mixed>> */
-        return is_array($items) ? $items : [];
+        /** @var array<int, array<string, mixed>> $items */
+        $items = is_array($items) ? $items : [];
+
+        return [
+            'items' => $items,
+            'truncated' => (int) data_get($body, 'total_count', 0) > count($items),
+        ];
     }
 
     /**

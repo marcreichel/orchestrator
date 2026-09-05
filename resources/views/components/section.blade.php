@@ -1,15 +1,19 @@
 {{-- Heading + list, kept together as one grid item. --}}
-@props(['title', 'count' => null, 'empty' => null, 'spinner' => false])
+@props(['title', 'count' => null, 'empty' => null, 'spinner' => false, 'truncated' => false])
 
 <section>
-    <h2 class="mt-8 mb-2 flex items-center gap-1.5 text-xs tracking-[.08em] text-muted uppercase">
-        {{ $title }}@unless (is_null($count)) ({{ $count }})@endunless
+    {{-- A search only ever asks for its first page, so a capped list gets a `+` and says
+         so on hover rather than reading as the whole picture. --}}
+    <h2 @if ($truncated) title="GitHub returned only the first page of matches — there are more than this." @endif
+        class="mt-8 mb-2 flex items-center gap-1.5 text-xs tracking-[.08em] text-muted uppercase">
+        {{ $title }}@unless (is_null($count)) ({{ $count }}{{ $truncated ? '+' : '' }})@endunless
 
         {{-- Untargeted: the Refresh button reloads by dispatching an event, which commits as
              `__dispatch` and so never matches wire:target="load". Only for sections inside a
              Livewire component — elsewhere nothing ever hides it again. --}}
         @if ($spinner)
-            <span wire:loading class="size-3 shrink-0 animate-spin rounded-full border border-line border-t-muted"></span>
+            <span wire:loading role="status" aria-label="Refreshing"
+                  class="size-3 shrink-0 animate-spin rounded-full border border-line border-t-muted"></span>
         @endif
     </h2>
 

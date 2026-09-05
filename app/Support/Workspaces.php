@@ -25,35 +25,46 @@ class Workspaces
         // to mark played rows, the workspace one to render them — and they load in
         // separate requests, so only a cache can collapse that into one fetch. Just long
         // enough to cover the fan-out; a failure isn't cached at all.
+        //
+        // Locked, or the cache never gets the chance: the three requests are isolated and
+        // go out together, so on a cold cache all three miss it in the same instant and
+        // each fetches the whole list. The lock lets the first through and the other two
+        // wait for the entry it writes.
         /** @var array<int, array<string, mixed>> */
-        return Cache::remember('orchestrator.workspaces.all', now()->addSeconds(15), function (): array {
-            $repoIds = array_values(Config::array('orchestrator.repos'));
+        return Cache::lock('orchestrator.workspaces.fetch', 30)->block(15, fn (): array => Cache::remember(
+            'orchestrator.workspaces.all',
+            now()->addSeconds(15),
+            function (): array {
+                $repoIds = array_values(Config::array('orchestrator.repos'));
 
-            /** @var array<int, Workspace> $workspaces */
-            $workspaces = Polyscope::workspaces();
+                /** @var array<int, Workspace> $workspaces */
+                $workspaces = Polyscope::workspaces();
 
-            return array_values(array_map(
-                fn (Workspace $workspace): array => self::row($workspace),
-                array_filter($workspaces, fn (Workspace $workspace): bool => in_array($workspace->repoId, $repoIds, true)),
-            ));
-        });
+                return array_values(array_map(
+                    fn (Workspace $workspace): array => self::row($workspace),
+                    array_filter($workspaces, fn (Workspace $workspace): bool => in_array($workspace->repoId, $repoIds, true)),
+                ));
+            },
+        ));
     }
 
     /**
      * Existing workspaces keyed by the URL of the issue or pull request they were started
      * for, newest per URL, so a list row can tell it has already been played.
      *
-     * A broken lookup returns no matches instead of throwing: the issue and pull request
-     * lists must survive a dead Polyscope, which surfaces the failure on its own section.
+     * A broken lookup returns null instead of throwing: the issue and pull request lists
+     * must survive a dead Polyscope, which surfaces the failure on its own section. Null
+     * rather than no matches, so a caller can tell "nothing has been played" from "no
+     * idea what has" — the second must not be cached over the first.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<string, array<string, mixed>>|null
      */
-    public static function byRef(): array
+    public static function byRef(): ?array
     {
         try {
             $workspaces = self::all();
         } catch (Throwable) {
-            return [];
+            return null;
         }
 
         $keyed = [];
@@ -121,6 +132,9 @@ class Workspaces
             : null;
 
         return [
+            // What a row is keyed on — a branch can be shared, and the position shifts
+            // every time a freshly played workspace is put on the front.
+            'id' => $workspace->id,
             'branch' => $workspace->branch,
             'status' => $workspace->status,
             // What a played row shows, whether the workspace was just created or already existed.

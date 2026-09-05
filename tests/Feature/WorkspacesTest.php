@@ -52,6 +52,7 @@ it('lists a freshly played workspace without refetching', function () {
     loaded('workspaces')
         ->assertSee('Nothing here.')
         ->dispatch('workspace-created', workspace: [
+            'id' => 'ws-9',
             'branch' => 'feature/9',
             'status' => 'active',
             'previewUrl' => null,
@@ -67,6 +68,7 @@ it('lists a freshly played workspace without refetching', function () {
 // empty refresh renders — but it must not become the list the next page paints from cache.
 it('keeps the cached list when a refresh comes back empty', function () {
     $cached = ['workspaces' => [[
+        'id' => 'ws-cached',
         'branch' => 'cached-branch',
         'status' => 'active',
         'previewUrl' => null,

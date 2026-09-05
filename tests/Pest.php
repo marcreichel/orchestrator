@@ -52,6 +52,9 @@ function loaded(string $name): Testable
  * @param  array<int, array<string, mixed>>  $pullRequests
  * @param  array<string, string>  $statuses  Issue node id => board column it sits in.
  * @param  array<string, string>  $checks  Pull request node id => CI rollup state.
+ * @param  int|null  $totalCount  What GitHub says it matched, when that is more than the
+ *                                page it hands back. Defaults to the page's own size, so
+ *                                a search reads as complete unless a test says otherwise.
  */
 function fakeGitHub(
     array $assigned = [],
@@ -61,19 +64,22 @@ function fakeGitHub(
     array $statuses = [],
     array $checks = [],
     ?string $claimError = null,
+    ?int $totalCount = null,
 ): void {
     Http::fake([
         // The bug search is told apart by `type:Bug` — `no:assignee` won't do, the
         // second list's own fixture query uses it too.
-        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests) {
+        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests, $totalCount) {
             $url = $request->url();
 
-            return Http::response(['items' => match (true) {
+            $items = match (true) {
                 str_contains($url, 'is%3Apr') => $pullRequests,
                 str_contains($url, 'assignee%3A%40me') => $assigned,
                 str_contains($url, 'type%3ABug') => $bugs,
                 default => $other,
-            }]);
+            };
+
+            return Http::response(['total_count' => $totalCount ?? count($items), 'items' => $items]);
         },
 
         'api.github.com/graphql' => function (Request $request) use ($statuses, $checks, $claimError) {

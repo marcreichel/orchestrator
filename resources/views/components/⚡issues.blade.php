@@ -24,6 +24,13 @@ new #[Isolate] class extends Component
     /** @var array<int, array<string, mixed>> */
     public array $bugs = [];
 
+    /**
+     * Whether GitHub had more matches than the one page a search asks for, per list.
+     *
+     * @var array<string, bool>
+     */
+    public array $truncated = [];
+
     /** Claim checkbox state, per issue node id. */
     /** @var array<string, bool> */
     public array $claim = [];
@@ -51,8 +58,6 @@ new #[Isolate] class extends Component
     #[On('reload')]
     public function load(): void
     {
-        $this->played = [];
-
         try {
             $board = app(Board::class);
 
@@ -64,16 +69,20 @@ new #[Isolate] class extends Component
                 return is_string($query) && $query !== '' ? $query : null;
             };
 
+            $missing = ['items' => [], 'truncated' => false];
+
             $found = app(GitHub::class)->issues(array_filter([
                 'assigned' => 'assignee:@me is:issue is:open',
                 'other' => $query('other_issues'),
                 'bugs' => $query('unassigned_bugs'),
-            ])) + ['assigned' => [], 'other' => [], 'bugs' => []];
+            ])) + ['assigned' => $missing, 'other' => $missing, 'bugs' => $missing];
 
             // The extra lists are free-form, so each can overlap with the ones before it.
-            $assigned = $found['assigned'];
-            $other = self::reject($found['other'], $assigned);
-            $bugs = self::reject($found['bugs'], [...$assigned, ...$other]);
+            $assigned = $found['assigned']['items'];
+            $other = self::reject($found['other']['items'], $assigned);
+            $bugs = self::reject($found['bugs']['items'], [...$assigned, ...$other]);
+
+            $this->truncated = array_map(fn (array $page): bool => $page['truncated'], $found);
 
             // One board lookup for all three lists, after the overlaps are gone — the
             // status of an issue that isn't going to be shown is nobody's business.
@@ -87,11 +96,20 @@ new #[Isolate] class extends Component
             $this->other = $keep($other);
             $this->bugs = $keep($bugs);
 
-            $this->claim = array_fill_keys(array_column($this->issues(), 'id'), true);
+            $ids = array_flip(array_column($this->issues(), 'id'));
+
+            // New issues start checked, but a box the user cleared stays cleared — the
+            // five-minute poll runs this too, and re-ticking it under them would undo the
+            // decision without asking.
+            $this->claim = array_intersect_key($this->claim, $ids) + array_fill_keys(array_keys($ids), true);
             $this->error = null;
 
             // An issue that already has a workspace is shown as played: no ▶, no checkbox.
+            // A dead Polyscope means "no idea", not "nothing has been played", so a failed
+            // lookup keeps the ✓ marks the last good one left rather than caching a run
+            // that has lost every one of them.
             $workspaces = Workspaces::byRef();
+            $this->played = $workspaces === null ? array_intersect_key($this->played, $ids) : [];
 
             foreach ($this->issues() as $issue) {
                 if ($workspace = $workspaces[$issue['url']] ?? null) {
@@ -99,7 +117,7 @@ new #[Isolate] class extends Component
                 }
             }
 
-            Cache::forever(self::CACHE, $this->only('assigned', 'other', 'bugs', 'claim', 'played'));
+            Cache::forever(self::CACHE, $this->only('assigned', 'other', 'bugs', 'truncated', 'claim', 'played'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->assigned = $this->other = $this->bugs = [];
@@ -187,11 +205,11 @@ new #[Isolate] class extends Component
 <div class="contents" wire:init="load" wire:poll.300s="load">
     {{-- array_filter, so a list whose query is unset renders no section at all. --}}
     @foreach (array_filter([
-        ['Assigned to me', $assigned],
-        config('orchestrator.other_issues') ? ['Other issues', $other] : null,
-        config('orchestrator.unassigned_bugs') ? ['Unassigned bugs', $bugs] : null,
-    ]) as [$title, $issues])
-        <x-section :title="$title" :count="count($issues)" :empty="$error" spinner>
+        ['Assigned to me', $assigned, 'assigned'],
+        config('orchestrator.other_issues') ? ['Other issues', $other, 'other'] : null,
+        config('orchestrator.unassigned_bugs') ? ['Unassigned bugs', $bugs, 'bugs'] : null,
+    ]) as [$title, $issues, $key])
+        <x-section :title="$title" :count="count($issues)" :truncated="$truncated[$key] ?? false" :empty="$error" spinner>
             @foreach ($issues as $issue)
                 @php($played = $played[$issue['id']] ?? [])
                 <li wire:key="{{ $issue['id'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
@@ -213,21 +231,26 @@ new #[Isolate] class extends Component
                         </span>
                     @endif
 
+                    {{-- aria-label on both: a bare ▶ and an unlabelled checkbox have no
+                         accessible name at all, and `title` is not a reliable one. --}}
                     @unless (isset($played['status']))
                         <input type="checkbox" wire:model="claim.{{ $issue['id'] }}" class="accent-mint"
+                               aria-label="Claim issue #{{ $issue['number'] }}"
                                title="Assign to me and move to {{ config('orchestrator.board.started') }}">
                         <button wire:click="play('{{ $issue['id'] }}')" wire:loading.attr="disabled"
+                                aria-label="Play issue #{{ $issue['number'] }}" title="Play"
                                 class="cursor-pointer rounded-md bg-chip px-2.5 py-0.5 hover:bg-chip-hover">▶</button>
                     @endunless
 
-                    <span wire:loading wire:target="play('{{ $issue['id'] }}')" class="text-sm text-mint">…</span>
+                    <span wire:loading wire:target="play('{{ $issue['id'] }}')" role="status"
+                          aria-label="Starting a workspace" class="text-sm text-mint">…</span>
 
                     @isset($played['status'])
                         <span class="text-sm text-mint">{{ $played['status'] }}</span>
                     @endisset
 
                     @if ($played['error'] ?? null)
-                        <span class="text-sm text-rose">✗ {{ $played['error'] }}</span>
+                        <span role="alert" class="text-sm text-rose">✗ {{ $played['error'] }}</span>
                     @endif
 
                     @if ($played['drop'] ?? false)

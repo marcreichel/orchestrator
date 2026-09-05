@@ -61,7 +61,11 @@ new #[Isolate] class extends Component
 <div wire:init="load" wire:poll.300s="load">
     <x-section title="Workspaces" :count="count($workspaces)" :empty="$error" spinner>
         @foreach ($workspaces as $workspace)
-            <li wire:key="{{ $loop->index }}-{{ $workspace['branch'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
+            {{-- Keyed on the workspace, not on its position: prepend() puts a freshly played
+                 one on the front, which shifts every index below it and makes Livewire
+                 re-patch the whole list. Falls back to the branch for rows cached before
+                 the id was carried. --}}
+            <li wire:key="{{ $workspace['id'] ?? $workspace['branch'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
                 {{-- previewUrl is nullable — an unlinked branch is plain text rather than a dead link.
                      min-w-1/2 so a long branch never collapses to one character per line next to
                      an even longer issue title. --}}
