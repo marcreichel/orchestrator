@@ -6,3 +6,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | resources/views/components/** | .ai/rules/components.md |
 | app/Support/GitHub.php, app/Support/Workspaces.php | .ai/rules/support.md |
+| resources/views/** | .ai/rules/views.md |

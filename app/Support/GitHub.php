@@ -119,10 +119,6 @@ class GitHub
      */
     public function boardStatuses(array $ids, string $board): array
     {
-        if ($ids === []) {
-            return [];
-        }
-
         $statuses = [];
 
         // `nodes(ids:)` takes at most 100 ids and the issue lists together can hand over
@@ -166,26 +162,27 @@ class GitHub
      */
     public function checkStates(array $ids): array
     {
-        if ($ids === []) {
-            return [];
-        }
-
-        $data = $this->graphql(<<<'GRAPHQL'
-            query ($ids: [ID!]!) {
-              nodes(ids: $ids) {
-                ... on PullRequest {
-                  id
-                  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-                }
-              }
-            }
-            GRAPHQL, ['ids' => $ids]);
-
         $states = [];
 
-        foreach ((array) data_get($data, 'nodes', []) as $node) {
-            $state = data_get($node, 'commits.nodes.0.commit.statusCheckRollup.state');
-            $states[(string) data_get($node, 'id')] = is_string($state) ? (self::CHECKS[$state] ?? null) : null;
+        // Chunked like the board lookup. One page of review requests fits in a single
+        // query today only because `per_page` happens to equal the `nodes(ids:)` cap —
+        // raise it and an unchunked call would start erroring instead.
+        foreach (array_chunk($ids, self::NODES_PER_QUERY) as $chunk) {
+            $data = $this->graphql(<<<'GRAPHQL'
+                query ($ids: [ID!]!) {
+                  nodes(ids: $ids) {
+                    ... on PullRequest {
+                      id
+                      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+                    }
+                  }
+                }
+                GRAPHQL, ['ids' => $chunk]);
+
+            foreach ((array) data_get($data, 'nodes', []) as $node) {
+                $state = data_get($node, 'commits.nodes.0.commit.statusCheckRollup.state');
+                $states[(string) data_get($node, 'id')] = is_string($state) ? (self::CHECKS[$state] ?? null) : null;
+            }
         }
 
         return $states;
@@ -333,7 +330,11 @@ class GitHub
     /** Shared by the plain client and by the requests a pool hands out. */
     private function configure(PendingRequest $request): PendingRequest
     {
+        // Short, because the lists degrade gracefully and a worker doesn't: each list
+        // renders its own failure, so a hung GitHub should surface there rather than
+        // hold one of the few `artisan serve` workers for the default 30 seconds.
         return $request->baseUrl('https://api.github.com')
+            ->timeout(10)
             ->withToken($this->token)
             ->acceptJson();
     }

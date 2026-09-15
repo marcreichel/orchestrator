@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Polyscope\Laravel\Facades\Polyscope;
 
 beforeEach(function () {
@@ -63,4 +65,15 @@ it('reports a workspace failure on the row', function () {
         ->call('review', 7)
         ->assertSee('✗ Server offline')
         ->assertNotDispatched('workspace-created');
+});
+
+// `nodes(ids:)` is capped at 100, and a page of review requests can hold exactly that
+// many — so the lookup must chunk rather than lean on the two numbers matching.
+it('looks the check states up in chunks of a hundred pull requests', function () {
+    fakeGitHub(pullRequests: array_map(pullRequestItem(...), range(1, 101)));
+
+    loaded('prs')->assertCount('pullRequests', 101);
+
+    expect(Http::recorded(fn (Request $request): bool => str_contains(graphqlDocument($request), 'statusCheckRollup')))
+        ->toHaveCount(2);
 });
