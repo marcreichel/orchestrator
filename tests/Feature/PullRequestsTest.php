@@ -2,13 +2,12 @@
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use Polyscope\Laravel\Facades\Polyscope;
 
 beforeEach(function () {
     config()->set('orchestrator.repos', ['a/b' => 'repo-1']);
 
-    // Every load looks for existing workspaces; byDefault so a test can say otherwise.
-    Polyscope::shouldReceive('workspaces')->andReturn([])->byDefault();
+    // Every load looks for existing workspaces; a test can fake something else.
+    fakeOrca();
 });
 
 it('lists pull requests waiting on my review with their CI state', function () {
@@ -25,41 +24,41 @@ it('lists pull requests waiting on my review with their CI state', function () {
 it('starts a review workspace for the pull request', function () {
     fakeGitHub(pullRequests: [pullRequestItem(7)]);
 
-    Polyscope::shouldReceive('createWorkspace')
-        ->once()
-        ->withArgs(fn (array $data): bool => $data === [
-            'repository_id' => 'repo-1',
-            'pull_request_url' => 'https://github.com/a/b/pull/7',
-        ])
-        ->andReturn(workspace(['id' => 'ws-7', 'branch' => 'review/7', 'status' => 'active']));
-
-    // The prompt follows as a message, once the pull request is checked out.
-    Polyscope::shouldReceive('client->sendWorkspaceMessage')->once()->with('ws-7', '/my-pr-review 7');
+    fakeOrca(created: worktree(['branch' => 'refs/heads/review/7']));
 
     loaded('prs')
         ->call('review', 7)
         ->assertDispatchedTo('workspaces', 'workspace-created')
-        ->assertSee('✓ review/7 · active')
+        ->assertSee('✓ review/7 · in-progress')
         // The row stays put — the review still has to be written.
         ->assertSee('Pull request 7');
+
+    Process::assertRan(fn ($process): bool => $process->command === [
+        'orca', 'worktree', 'create',
+        '--repo', 'id:repo-1',
+        '--name', 'pr-7',
+        '--no-parent',
+        '--reference', 'https://github.com/a/b/pull/7',
+        '--agent', 'claude',
+        '--prompt', '/my-pr-review 7',
+        '--json',
+    ]);
 });
 
 it('shows the existing review workspace instead of a play button', function () {
     fakeGitHub(pullRequests: [pullRequestItem(7)]);
 
-    Polyscope::shouldReceive('workspaces')->andReturn([
-        workspace(['branch' => 'review/7', 'pr_number' => 7, 'pr_url' => 'https://github.com/a/b/pull/7']),
-    ]);
+    fakeOrca([linkedWorktree(7, 'https://github.com/a/b/pull/7', ['branch' => 'refs/heads/review/7'])]);
 
     loaded('prs')
-        ->assertSee('✓ review/7 · active')
+        ->assertSee('✓ review/7 · in-progress')
         ->assertDontSeeHtml('wire:click="review(7)"');
 });
 
 it('reports a workspace failure on the row', function () {
     fakeGitHub(pullRequests: [pullRequestItem(7)]);
 
-    Polyscope::shouldReceive('createWorkspace')->andThrow(new RuntimeException('Server offline'));
+    fakeOrcaFailing('Server offline');
 
     loaded('prs')
         ->call('review', 7)

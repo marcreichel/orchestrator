@@ -19,14 +19,14 @@ return [
     | Repositories
     |--------------------------------------------------------------------------
     |
-    | GitHub repository full name => Polyscope repository id. Issues and pull
+    | GitHub repository full name => Orca repository id (see /repositories). Issues and pull
     | requests are only searched in these repos, and only workspaces belonging
     | to them are listed.
     |
     */
 
     'repos' => [
-        'artemeon/core-ng' => 'f64cd685',
+        'artemeon/core-ng' => 'bfe4b8f9-7742-4673-b130-533bc8c1ed4c',
     ],
 
     /*
@@ -80,13 +80,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Workspace prompts
+    | Workspace agent and prompts
     |--------------------------------------------------------------------------
     |
-    | The first prompt sent to a freshly created workspace. `%d` is the issue
-    | or pull request number.
+    | The Orca agent started in a freshly created workspace, and the first
+    | prompt it gets. `%d` is the issue or pull request number.
     |
     */
+
+    'agent' => 'claude',
 
     'prompts' => [
         'issue' => '/implement-issue %d',

@@ -14,12 +14,6 @@ return [
     |
     */
 
-    'polyscope' => [
-        // Null (and an empty env value) falls back to the token the Polyscope desktop
-        // app stores locally, which is what the SDK does when it gets nothing.
-        'token' => env('POLYSCOPE_TOKEN') ?: null,
-    ],
-
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

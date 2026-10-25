@@ -41,7 +41,7 @@ new #[Isolate] class extends Component
             $this->error = null;
 
             // A pull request that already has a review workspace is shown as reviewed: no ▶.
-            // A dead Polyscope means "no idea", not "nothing has been reviewed" — see the
+            // A dead Orca means "no idea", not "nothing has been reviewed" — see the
             // issues component.
             $numbers = array_flip(array_column($this->pullRequests, 'number'));
             $workspaces = Workspaces::byRef();

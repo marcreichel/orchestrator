@@ -10,7 +10,7 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 
 // Isolated, or Livewire bundles the three lists' loads into one request and they can
-// only ever arrive together — as slow as the slowest of GitHub and Polyscope.
+// only ever arrive together — as slow as the slowest of GitHub and Orca.
 new #[Isolate] class extends Component
 {
     private const CACHE = 'orchestrator.issues';
@@ -105,7 +105,7 @@ new #[Isolate] class extends Component
             $this->error = null;
 
             // An issue that already has a workspace is shown as played: no ▶, no checkbox.
-            // A dead Polyscope means "no idea", not "nothing has been played", so a failed
+            // A dead Orca means "no idea", not "nothing has been played", so a failed
             // lookup keeps the ✓ marks the last good one left rather than caching a run
             // that has lost every one of them.
             $workspaces = Workspaces::byRef();

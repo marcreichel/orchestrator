@@ -29,11 +29,9 @@ new #[Isolate] class extends Component
             $this->workspaces = Workspaces::all();
             $this->error = null;
 
-            // The SDK turns an unreadable 200 — empty body, truncated JSON, anything
-            // without a `data` key — into an empty list rather than into a failure, so an
-            // empty refresh is the one result that can't be told from a broken one. It
-            // still renders (a list really can be empty), but it never becomes the list
-            // the next page paints, or one bad answer keeps showing up long after it.
+            // An empty refresh still renders (a list really can be empty), but it never
+            // becomes the list the next page paints, or one bad answer keeps showing up
+            // long after it.
             if ($this->workspaces !== []) {
                 Cache::forever(self::CACHE, $this->only('workspaces'));
             }
@@ -66,14 +64,9 @@ new #[Isolate] class extends Component
                  re-patch the whole list. Falls back to the branch for rows cached before
                  the id was carried. --}}
             <li wire:key="{{ $workspace['id'] ?? $workspace['branch'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
-                {{-- previewUrl is nullable — an unlinked branch is plain text rather than a dead link.
-                     min-w-1/2 so a long branch never collapses to one character per line next to
+                {{-- min-w-1/2 so a long branch never collapses to one character per line next to
                      an even longer issue title. --}}
-                @if ($workspace['previewUrl'])
-                    <a href="{{ $workspace['previewUrl'] }}" target="_blank" class="min-w-1/2 flex-1 [overflow-wrap:anywhere] hover:underline">{{ $workspace['branch'] }}</a>
-                @else
-                    <span class="min-w-1/2 flex-1 [overflow-wrap:anywhere]">{{ $workspace['branch'] }}</span>
-                @endif
+                <span class="min-w-1/2 flex-1 [overflow-wrap:anywhere]">{{ $workspace['branch'] }}</span>
 
                 @if ($workspace['ref'])
                     {{-- Gets whatever is left and gives up first, since the branch identifies the

@@ -1,42 +1,41 @@
 <?php
 
 use Illuminate\Support\Facades\Cache;
-use Polyscope\Laravel\Facades\Polyscope;
 
 beforeEach(function () {
     config()->set('orchestrator.repos', ['a/b' => 'repo-1']);
     config()->set('app.timezone', 'UTC');
 });
 
-it('lists only the workspaces of mapped repositories', function () {
-    Polyscope::shouldReceive('workspaces')->once()->andReturn([
-        workspace(['branch' => 'feature/1', 'preview_url' => 'https://preview.test/1']),
-        workspace(['repo_id' => 'somebody-elses', 'branch' => 'not-mine']),
+it('lists only the workspaces of mapped repositories, newest first', function () {
+    fakeOrca([
+        worktree(['branch' => 'refs/heads/older', 'createdAt' => 1_000]),
+        worktree(['repoId' => 'somebody-elses', 'branch' => 'refs/heads/not-mine']),
+        worktree(['branch' => 'refs/heads/main', 'isMainWorktree' => true]),
+        worktree(['branch' => 'refs/heads/archived', 'isArchived' => true]),
+        worktree(['branch' => 'refs/heads/newer', 'createdAt' => 2_000]),
     ]);
 
     loaded('workspaces')
-        ->assertCount('workspaces', 1)
-        ->assertSee('feature/1')
-        ->assertSeeHtml('https://preview.test/1')
-        ->assertDontSee('not-mine');
+        ->assertCount('workspaces', 2)
+        ->assertSet('workspaces.0.branch', 'newer')
+        ->assertSet('workspaces.1.branch', 'older')
+        ->assertDontSee('not-mine')
+        ->assertDontSee('archived');
+
+    assertOrcaCalled('worktree list', 1);
 });
 
-it('shows the linked issue when Polyscope returns one', function () {
-    Polyscope::shouldReceive('workspaces')->andReturn([
-        workspace([
-            'issue_number' => 42,
-            'issue_title' => 'Fix the thing',
-            'issue_url' => 'https://github.com/a/b/issues/42',
-        ]),
-    ]);
+it('shows the linked issue when Orca returns one', function () {
+    fakeOrca([linkedWorktree(42, 'https://github.com/a/b/issues/42')]);
 
-    loaded('workspaces')->assertSee('#42 Fix the thing');
+    loaded('workspaces')->assertSee('#42');
 });
 
-// Polyscope timestamps are UTC but carry no zone, so a wrong reading would shift the
-// clock by the local offset instead of rendering 11:18 back.
-it('reads the zoneless created_at as UTC', function () {
-    Polyscope::shouldReceive('workspaces')->andReturn([workspace(['created_at' => '2026-08-08 11:18:15'])]);
+// Orca stamps createdAt in epoch milliseconds, so the clock must come out right in the
+// app's timezone without any zone parsing on our side.
+it('renders createdAt in the application timezone', function () {
+    fakeOrca([worktree()]);
 
     loaded('workspaces')
         ->assertSee('Sat, Aug 8, 2026 11:18 AM')
@@ -47,15 +46,14 @@ it('reads the zoneless created_at as UTC', function () {
 });
 
 it('lists a freshly played workspace without refetching', function () {
-    Polyscope::shouldReceive('workspaces')->once()->andReturn([]);
+    fakeOrca();
 
     loaded('workspaces')
         ->assertSee('Nothing here.')
         ->dispatch('workspace-created', workspace: [
             'id' => 'ws-9',
             'branch' => 'feature/9',
-            'status' => 'active',
-            'previewUrl' => null,
+            'status' => 'in-progress',
             'age' => null,
             'createdAt' => null,
             'ref' => null,
@@ -64,14 +62,12 @@ it('lists a freshly played workspace without refetching', function () {
         ->assertSee('feature/9');
 });
 
-// An unreadable answer reaches the app as an empty list rather than as a failure, so an
-// empty refresh renders — but it must not become the list the next page paints from cache.
+// An empty refresh renders — but it must not become the list the next page paints from cache.
 it('keeps the cached list when a refresh comes back empty', function () {
     $cached = ['workspaces' => [[
         'id' => 'ws-cached',
         'branch' => 'cached-branch',
-        'status' => 'active',
-        'previewUrl' => null,
+        'status' => 'in-progress',
         'age' => null,
         'createdAt' => null,
         'ref' => null,
@@ -79,7 +75,7 @@ it('keeps the cached list when a refresh comes back empty', function () {
 
     Cache::forever('orchestrator.workspaces', $cached);
 
-    Polyscope::shouldReceive('workspaces')->once()->andReturn([]);
+    fakeOrca();
 
     loaded('workspaces')
         ->assertCount('workspaces', 0)
@@ -89,7 +85,7 @@ it('keeps the cached list when a refresh comes back empty', function () {
 });
 
 it('shows the failure instead of the list', function () {
-    Polyscope::shouldReceive('workspaces')->andThrow(new RuntimeException('Missing API token'));
+    fakeOrcaFailing('Orca is not running');
 
-    loaded('workspaces')->assertSee('Missing API token');
+    loaded('workspaces')->assertSee('Orca is not running');
 });

@@ -7,8 +7,8 @@ namespace App\Support;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
-use Polyscope\Laravel\Facades\Polyscope;
-use Polyscope\Laravel\Resources\Workspace;
+use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
@@ -37,13 +37,18 @@ class Workspaces
             function (): array {
                 $repoIds = array_values(Config::array('orchestrator.repos'));
 
-                /** @var array<int, Workspace> $workspaces */
-                $workspaces = Polyscope::workspaces();
+                /** @var array<int, array<string, mixed>> $worktrees */
+                $worktrees = self::orca(['worktree', 'list'])['worktrees'] ?? [];
 
-                return array_values(array_map(
-                    fn (Workspace $workspace): array => self::row($workspace),
-                    array_filter($workspaces, fn (Workspace $workspace): bool => in_array($workspace->repoId, $repoIds, true)),
-                ));
+                // Orca lists the main checkout and archived worktrees too; neither is a
+                // workspace this app started.
+                $mine = array_filter($worktrees, fn (array $worktree): bool => in_array($worktree['repoId'], $repoIds, true)
+                    && ! $worktree['isMainWorktree']
+                    && ! $worktree['isArchived']);
+
+                usort($mine, fn (array $a, array $b): int => ($b['createdAt'] ?? 0) <=> ($a['createdAt'] ?? 0));
+
+                return array_map(fn (array $worktree): array => self::row($worktree), $mine);
             },
         ));
     }
@@ -53,7 +58,7 @@ class Workspaces
      * for, newest per URL, so a list row can tell it has already been played.
      *
      * A broken lookup returns null instead of throwing: the issue and pull request lists
-     * must survive a dead Polyscope, which surfaces the failure on its own section. Null
+     * must survive a dead Orca, which surfaces the failure on its own section. Null
      * rather than no matches, so a caller can tell "nothing has been played" from "no
      * idea what has" — the second must not be cached over the first.
      *
@@ -83,7 +88,8 @@ class Workspaces
     {
         return self::start(
             $repo,
-            ['issue_url' => $url],
+            "issue-{$number}",
+            $url,
             sprintf(Config::string('orchestrator.prompts.issue'), $number),
         );
     }
@@ -93,68 +99,108 @@ class Workspaces
     {
         return self::start(
             $repo,
-            ['pull_request_url' => $url],
+            "pr-{$number}",
+            $url,
             sprintf(Config::string('orchestrator.prompts.pull_request'), $number),
         );
     }
 
     /**
-     * The prompt goes out as a message rather than as the create call's `prompt`, so the
-     * workspace has the issue or pull request checked out before it runs.
+     * Every Orca repository with its id, for filling in `orchestrator.repos`.
      *
-     * @param  array<string, string>  $link  `issue_url` or `pull_request_url`.
-     * @return array<string, mixed>
+     * @return array<int, array{id: string, name: string, path: string|null}>
      */
-    private static function start(string $repo, array $link, string $prompt): array
+    public static function repositories(): array
     {
-        $workspace = Polyscope::createWorkspace(['repository_id' => self::repositoryId($repo)] + $link);
+        /** @var array<int, array<string, mixed>> $repos */
+        $repos = self::orca(['repo', 'list'])['repos'] ?? [];
 
-        // Via client(): the facade only declares a subset of the SDK's methods.
-        Polyscope::client()->sendWorkspaceMessage((string) $workspace->id, $prompt);
-
-        return self::row($workspace);
+        return array_map(fn (array $repo): array => [
+            'id' => $repo['id'],
+            'name' => $repo['displayName'],
+            'path' => $repo['path'] ?? null,
+        ], $repos);
     }
 
     /**
-     * The list endpoint returns thin workspaces — `repository`, `agent` and `stats`
-     * come back null there, so a row can only use what a *listed* workspace also has.
+     * One call: Orca creates the worktree with the issue or pull request attached, then
+     * starts the agent on the prompt.
      *
      * @return array<string, mixed>
      */
-    private static function row(Workspace $workspace): array
+    private static function start(string $repo, string $name, string $url, string $prompt): array
     {
-        // Polyscope timestamps are UTC but carry no zone ("2026-08-08 11:18:15"), which
-        // Carbon would otherwise read in the application's timezone. Formatted here
-        // rather than in the view: Livewire doesn't rehydrate a Carbon nested in an
-        // array property, so it would come back as a string on the next round-trip.
-        $createdAt = $workspace->createdAt !== null
-            ? Carbon::parse($workspace->createdAt, 'UTC')->timezone(Config::string('app.timezone'))
+        $result = self::orca([
+            'worktree', 'create',
+            '--repo', 'id:'.self::repositoryId($repo),
+            '--name', $name,
+            '--no-parent',
+            '--reference', $url,
+            '--agent', Config::string('orchestrator.agent'),
+            '--prompt', $prompt,
+        ], 120);
+
+        /** @var array<string, mixed> $worktree */
+        $worktree = $result['worktree'];
+
+        return self::row($worktree);
+    }
+
+    /**
+     * Runs the `orca` CLI and returns its `result`. Orca reports failures as `ok: false`
+     * and as a non-zero exit, so either one raises.
+     *
+     * @param  array<int, string>  $arguments
+     * @return array<string, mixed>
+     */
+    private static function orca(array $arguments, int $timeout = 30): array
+    {
+        $process = Process::timeout($timeout)->run(['orca', ...$arguments, '--json']);
+
+        // The JSON is the last thing on stdout; a shell profile can print before it.
+        $body = json_decode(Str::of($process->output())->after('{')->prepend('{')->toString(), true);
+
+        if ($process->failed() || ! is_array($body) || ! ($body['ok'] ?? false)) {
+            throw new RuntimeException($body['error']['message'] ?? (trim($process->errorOutput()) ?: 'Orca did not answer'));
+        }
+
+        return $body['result'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $worktree
+     * @return array<string, mixed>
+     */
+    private static function row(array $worktree): array
+    {
+        // Formatted here rather than in the view: Livewire doesn't rehydrate a Carbon
+        // nested in an array property, so it would come back as a string on the next
+        // round-trip.
+        $createdAt = isset($worktree['createdAt'])
+            ? Carbon::createFromTimestampMs($worktree['createdAt'])->timezone(Config::string('app.timezone'))
             : null;
+
+        $branch = Str::after($worktree['branch'], 'refs/heads/');
+        $status = $worktree['workspaceStatus'];
+
+        // Orca doesn't carry the title of what a worktree is linked to, only its number and URL.
+        $linked = collect($worktree['linkedItems'] ?? [])->first(fn (array $item): bool => isset($item['url']));
 
         return [
             // What a row is keyed on — a branch can be shared, and the position shifts
             // every time a freshly played workspace is put on the front.
-            'id' => $workspace->id,
-            'branch' => $workspace->branch,
-            'status' => $workspace->status,
+            'id' => $worktree['id'],
+            'branch' => $branch,
+            'status' => $status,
             // What a played row shows, whether the workspace was just created or already existed.
-            'label' => "✓ {$workspace->branch} · {$workspace->status}",
-            'previewUrl' => $workspace->previewUrl,
+            'label' => "✓ {$branch} · {$status}",
             'age' => $createdAt?->diffForHumans(short: true),
             'createdAt' => $createdAt?->toDayDateTimeString(),
-            'ref' => match (true) {
-                $workspace->issueNumber !== null => [
-                    'number' => $workspace->issueNumber,
-                    'title' => $workspace->issueTitle,
-                    'url' => $workspace->issueUrl,
-                ],
-                $workspace->prNumber !== null => [
-                    'number' => $workspace->prNumber,
-                    'title' => $workspace->prTitle,
-                    'url' => $workspace->prUrl,
-                ],
-                default => null,
-            },
+            'ref' => $linked ? [
+                'number' => $linked['number'] ?? null,
+                'title' => null,
+                'url' => $linked['url'],
+            ] : null,
         ];
     }
 
@@ -163,7 +209,7 @@ class Workspaces
         $id = Config::array('orchestrator.repos')[$repo] ?? null;
 
         if (! is_string($id)) {
-            throw new RuntimeException("No Polyscope repository mapped for {$repo}");
+            throw new RuntimeException("No Orca repository mapped for {$repo}");
         }
 
         return $id;

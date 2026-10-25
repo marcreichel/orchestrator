@@ -1,10 +1,11 @@
 <?php
 
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Process;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
-use Polyscope\Laravel\Resources\Workspace;
 use Tests\TestCase;
 
 /*
@@ -171,14 +172,74 @@ function pullRequestItem(int $number, string $author = 'octocat', string $repo =
     ];
 }
 
-/** @param  array<string, mixed>  $attributes */
-function workspace(array $attributes = []): Workspace
+/**
+ * An Orca worktree as `orca worktree list --json` reports it.
+ *
+ * @param  array<string, mixed>  $attributes
+ * @return array<string, mixed>
+ */
+function worktree(array $attributes = []): array
 {
-    return new Workspace($attributes + [
-        'id' => 'ws-1',
-        'repo_id' => 'repo-1',
-        'branch' => 'feature/1',
-        'status' => 'active',
-        'created_at' => '2026-08-08 11:18:15',
+    return $attributes + [
+        'id' => 'repo-1::/orca/feature-1',
+        'repoId' => 'repo-1',
+        'branch' => 'refs/heads/feature/1',
+        'isMainWorktree' => false,
+        'isArchived' => false,
+        'workspaceStatus' => 'in-progress',
+        'createdAt' => Carbon::parse('2026-08-08 11:18:15', 'UTC')->getTimestampMs(),
+        'linkedItems' => [],
+    ];
+}
+
+/**
+ * A worktree linked to a GitHub issue or pull request.
+ *
+ * @param  array<string, mixed>  $attributes
+ * @return array<string, mixed>
+ */
+function linkedWorktree(int $number, string $url, array $attributes = []): array
+{
+    return worktree($attributes + [
+        'linkedItems' => [['provider' => 'github', 'type' => 'issue', 'number' => $number, 'url' => $url]],
     ]);
+}
+
+/**
+ * Fake the `orca` CLI: what the worktree and repo lists hold, and the worktree a
+ * create call hands back. Call it again to replace what an earlier call faked.
+ *
+ * @param  array<int, array<string, mixed>>  $worktrees
+ * @param  array<int, array<string, mixed>>  $repos
+ * @param  array<string, mixed>|null  $created
+ */
+function fakeOrca(array $worktrees = [], array $repos = [], ?array $created = null): void
+{
+    $ok = fn (array $result) => Process::result(json_encode(['ok' => true, 'result' => $result]));
+
+    Process::fake([
+        // Array commands reach the fake shell-quoted: 'orca' 'worktree' 'list'.
+        "*'worktree' 'list'*" => $ok(['worktrees' => $worktrees]),
+        "*'worktree' 'create'*" => $ok(['worktree' => $created ?? worktree()]),
+        "*'repo' 'list'*" => $ok(['repos' => $repos]),
+    ]);
+
+    // An unfaked call would otherwise reach the real Orca.
+    Process::preventStrayProcesses();
+}
+
+/** Every `orca` call fails with this message, the way a stopped Orca does. */
+function fakeOrcaFailing(string $message): void
+{
+    $failure = Process::result(errorOutput: $message, exitCode: 1);
+
+    // The same patterns fakeOrca() registers — an earlier, more specific one would win over a `*`.
+    Process::fake(["*'worktree' 'list'*" => $failure, "*'worktree' 'create'*" => $failure, "*'repo' 'list'*" => $failure]);
+    Process::preventStrayProcesses();
+}
+
+/** Assert the CLI was called exactly this many times with this subcommand, e.g. `worktree list`. */
+function assertOrcaCalled(string $subcommand, int $times): void
+{
+    Process::assertRanTimes(fn ($process): bool => str_contains(implode(' ', (array) $process->command), $subcommand), $times);
 }

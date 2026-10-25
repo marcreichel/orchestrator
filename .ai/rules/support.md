@@ -11,20 +11,15 @@ Multiple bare `repo:` qualifiers are ANDed by GitHub and always return 0 hits. T
 
 GitHub's GraphQL endpoint answers HTTP 200 with an `errors` array on failure, so `->throw()` never fires. Failures have to be raised by inspecting the body (see GitHub::graphql()).
 
-## Polyscope SDK quirks
-Workspace timestamps are UTC but carry no zone ("2026-08-08 11:18:15"), so they must be parsed with an explicit UTC: `Carbon::parse($ws->createdAt, 'UTC')`. Without it Carbon reads them in the app timezone and the age is off by the local offset.
+## Orca CLI quirks
+Workspaces are Orca worktrees, driven through the `orca` CLI (`Workspaces::orca()`), not an SDK. `worktree list` returns every worktree of every repo, including each repo's main checkout and archived ones — `all()` keeps only mapped, non-main, non-archived ones. `createdAt` is epoch milliseconds, `branch` is a full ref (`refs/heads/…`), and the linked issue/PR is in `linkedItems` as number + URL with no title.
 
-The workspace *list* endpoint returns thin resources: `repository`, `agent` and `stats` are null, and a linked issue/PR gives back its number but not its title. Only use fields a listed workspace also has.
+One `worktree create --reference <url> --agent … --prompt …` makes the worktree, attaches the issue/PR and starts the agent. Don't split it back into create + send.
 
-`services.polyscope.token` must be null (not an empty string) for the SDK to fall back to the token the Polyscope desktop app stores locally — hence `env('POLYSCOPE_TOKEN') ?: null`.
-
-## An empty workspace list can mean a broken response
-The SDK maps any unreadable 200 (empty body, invalid JSON, a body without a `data` key) to an empty array instead of raising — see MakesHttpRequests::decodeResponseBody() and ManagesWorkspaces::workspaces(). So `Polyscope::workspaces()` returning nothing is indistinguishable from an account that really has no workspaces, and it is the only way a list can go silently empty (GitHub's failures all throw).
-
-Treat an empty result as suspect where it would outlive the request: the workspaces component renders it but does not write it to `orchestrator.workspaces`, so one bad answer can't keep painting an empty list on every page load. Telling the two apart for real needs the raw envelope via `Polyscope::client()->get('v1/workspaces')`, which costs the `shouldReceive('workspaces')` mocking used across the tests — not worth it so far.
+Orca answers `{ok, result}` on stdout and a non-zero exit on failure; either raises. In tests the call is faked with `Process::fake`, but array commands reach the fake shell-quoted (`'worktree' 'list'`), so patterns must match the quotes — see `fakeOrca()`. An unmatched pattern quietly runs the real CLI unless `preventStrayProcesses()` is on.
 
 ## byRef() returns null on failure, never an empty array
-`Workspaces::byRef()` returns `null` when the Polyscope lookup failed and an array (possibly empty) when it succeeded. The distinction is load-bearing: the issue and pull request lists cache their played/reviewed ✓ marks, and an outage that read as "nothing has been played" would cache a run with every mark dropped, which the next page load then paints. On null they keep the marks the last good lookup left; on an empty array they clear them. Do not collapse the two back into `[]`.
+`Workspaces::byRef()` returns `null` when the Orca lookup failed and an array (possibly empty) when it succeeded. The distinction is load-bearing: the issue and pull request lists cache their played/reviewed ✓ marks, and an outage that read as "nothing has been played" would cache a run with every mark dropped, which the next page load then paints. On null they keep the marks the last good lookup left; on an empty array they clear them. Do not collapse the two back into `[]`.
 
 `Workspaces::all()` is wrapped in `Cache::lock(...)->block()`. The three lists are `#[Isolate]`d and their `wire:init` requests go out together, so without it all three miss the 15s cache in the same instant and each fetches the whole list. The lock, not the cache alone, is what makes it one fetch per refresh — the "fetches the workspaces once for every list of a refresh" test covers it.
 

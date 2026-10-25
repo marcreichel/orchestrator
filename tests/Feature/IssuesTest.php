@@ -3,7 +3,6 @@
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Polyscope\Laravel\Facades\Polyscope;
 
 beforeEach(function () {
     config()->set('orchestrator.repos', ['a/b' => 'repo-1']);
@@ -11,8 +10,8 @@ beforeEach(function () {
     config()->set('orchestrator.other_issues', 'is:open is:issue no:assignee');
     config()->set('orchestrator.unassigned_bugs', 'is:open is:issue no:assignee type:Bug');
 
-    // Every load looks for existing workspaces; byDefault so a test can say otherwise.
-    Polyscope::shouldReceive('workspaces')->andReturn([])->byDefault();
+    // Every load looks for existing workspaces; a test can fake something else.
+    fakeOrca();
 });
 
 it('lists assigned issues without the ignored and in-flight ones', function () {
@@ -65,22 +64,25 @@ it('drops bugs the second list already shows', function () {
 it('creates the workspace before claiming the issue', function () {
     fakeGitHub(assigned: [issueItem(1)]);
 
-    Polyscope::shouldReceive('createWorkspace')
-        ->once()
-        ->withArgs(fn (array $data): bool => $data === [
-            'repository_id' => 'repo-1',
-            'issue_url' => 'https://github.com/a/b/issues/1',
-        ])
-        ->andReturn(workspace(['id' => 'ws-1', 'branch' => 'feature/1', 'status' => 'active']));
-
-    // The prompt follows as a message, once the issue is checked out.
-    Polyscope::shouldReceive('client->sendWorkspaceMessage')->once()->with('ws-1', '/implement-issue 1');
+    fakeOrca(created: worktree(['branch' => 'refs/heads/feature/1']));
 
     loaded('issues')
         ->call('play', 'I_1')
         ->assertDispatchedTo('workspaces', 'workspace-created')
-        ->assertSee('✓ feature/1 · active')
+        ->assertSee('✓ feature/1 · in-progress')
         ->assertSet('played.I_1.drop', true);
+
+    // One call creates the worktree with the issue attached and starts the agent on the prompt.
+    Process::assertRan(fn ($process): bool => $process->command === [
+        'orca', 'worktree', 'create',
+        '--repo', 'id:repo-1',
+        '--name', 'issue-1',
+        '--no-parent',
+        '--reference', 'https://github.com/a/b/issues/1',
+        '--agent', 'claude',
+        '--prompt', '/implement-issue 1',
+        '--json',
+    ]);
 
     // The claim assigns me and moves the issue to the "In Progress" option id.
     Http::assertSent(fn (Request $request): bool => str_contains(graphqlDocument($request), 'updateProjectV2ItemFieldValue')
@@ -91,12 +93,11 @@ it('creates the workspace before claiming the issue', function () {
 it('keeps the workspace visible when the claim fails', function () {
     fakeGitHub(assigned: [issueItem(1)], claimError: 'Resource not accessible by personal access token');
 
-    Polyscope::shouldReceive('createWorkspace')->andReturn(workspace(['branch' => 'feature/1', 'status' => 'active']));
-    Polyscope::shouldReceive('client->sendWorkspaceMessage');
+    fakeOrca();
 
     loaded('issues')
         ->call('play', 'I_1')
-        ->assertSee('✓ feature/1 · active')
+        ->assertSee('✓ feature/1 · in-progress')
         ->assertSee('✗ Resource not accessible by personal access token')
         // No self-dismissal: the issue is still unassigned, so the row stays.
         ->assertSet('played.I_1.drop', false);
@@ -105,7 +106,7 @@ it('keeps the workspace visible when the claim fails', function () {
 it('leaves the issue untouched when the workspace cannot be created', function () {
     fakeGitHub(assigned: [issueItem(1)]);
 
-    Polyscope::shouldReceive('createWorkspace')->andThrow(new RuntimeException('Server offline'));
+    fakeOrcaFailing('Server offline');
 
     loaded('issues')
         ->call('play', 'I_1')
@@ -118,12 +119,10 @@ it('leaves the issue untouched when the workspace cannot be created', function (
 it('shows the existing workspace instead of a play button', function () {
     fakeGitHub(assigned: [issueItem(1)], other: [issueItem(2)]);
 
-    Polyscope::shouldReceive('workspaces')->andReturn([
-        workspace(['branch' => 'feature/1', 'issue_number' => 1, 'issue_url' => 'https://github.com/a/b/issues/1']),
-    ]);
+    fakeOrca([linkedWorktree(1, 'https://github.com/a/b/issues/1')]);
 
     loaded('issues')
-        ->assertSee('✓ feature/1 · active')
+        ->assertSee('✓ feature/1 · in-progress')
         ->assertDontSeeHtml('wire:click="play(\'I_1\')"')
         // The unplayed issue keeps its ▶.
         ->assertSeeHtml('wire:click="play(\'I_2\')"');
@@ -132,7 +131,7 @@ it('shows the existing workspace instead of a play button', function () {
 it('keeps the issues playable when the workspace lookup fails', function () {
     fakeGitHub(assigned: [issueItem(1)]);
 
-    Polyscope::shouldReceive('workspaces')->andThrow(new RuntimeException('Missing API token'));
+    fakeOrcaFailing('Orca is not running');
 
     loaded('issues')
         ->assertSet('error', null)
@@ -140,24 +139,22 @@ it('keeps the issues playable when the workspace lookup fails', function () {
         ->assertSeeHtml('wire:click="play(\'I_1\')"');
 });
 
-// A dead Polyscope can't tell a played issue from an unplayed one, so a refresh during
+// A dead Orca can't tell a played issue from an unplayed one, so a refresh during
 // the outage must not cache a run with every ✓ dropped — the next page load paints it.
 it('keeps the played marks when the workspace lookup fails', function () {
     fakeGitHub(assigned: [issueItem(1)]);
 
-    Polyscope::shouldReceive('workspaces')->once()->andReturn([
-        workspace(['branch' => 'feature/1', 'issue_number' => 1, 'issue_url' => 'https://github.com/a/b/issues/1']),
-    ]);
+    fakeOrca([linkedWorktree(1, 'https://github.com/a/b/issues/1')]);
 
-    loaded('issues')->assertSee('✓ feature/1 · active');
+    loaded('issues')->assertSee('✓ feature/1 · in-progress');
 
-    // Second refresh, same issue, Polyscope now down.
+    // Second refresh, same issue, Orca now down.
     Cache::forget('orchestrator.workspaces.all');
-    Polyscope::shouldReceive('workspaces')->andThrow(new RuntimeException('Missing API token'));
+    fakeOrcaFailing('Orca is not running');
 
-    loaded('issues')->assertSee('✓ feature/1 · active');
+    loaded('issues')->assertSee('✓ feature/1 · in-progress');
 
-    expect(Cache::get('orchestrator.issues')['played'])->toBe(['I_1' => ['status' => '✓ feature/1 · active']]);
+    expect(Cache::get('orchestrator.issues')['played'])->toBe(['I_1' => ['status' => '✓ feature/1 · in-progress']]);
 });
 
 // The five-minute poll runs load() too, so refilling every box would silently undo a
@@ -214,15 +211,15 @@ it('looks the board up in chunks of a hundred issues', function () {
 });
 
 // Both lists mark their played rows with it, and the workspace list renders it — one
-// fetch has to cover all three, or a refresh hits Polyscope three times over.
+// fetch has to cover all three, or a refresh hits Orca three times over.
 it('fetches the workspaces once for every list of a refresh', function () {
     fakeGitHub(assigned: [issueItem(1)], pullRequests: [pullRequestItem(5)]);
-
-    Polyscope::shouldReceive('workspaces')->once()->andReturn([]);
 
     loaded('issues');
     loaded('prs');
     loaded('workspaces');
+
+    assertOrcaCalled('worktree list', 1);
 });
 
 it('shows the failure instead of the list', function () {

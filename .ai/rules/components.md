@@ -11,7 +11,7 @@ paths:
 ## Livewire list components: refresh mechanics
 `wire:poll` only parses `ms` and `s` modifiers. `.5m` matches neither and silently falls back to Livewire's 2s default, so five minutes must be written `wire:poll.300s`.
 
-The lists must carry `#[Isolate]`. Without it Livewire pools the same-tick commits of all three components into one request, so every list only ever arrives as fast as the slowest of GitHub and Polyscope.
+The lists must carry `#[Isolate]`. Without it Livewire pools the same-tick commits of all three components into one request, so every list only ever arrives as fast as the slowest of GitHub and Orca.
 
 Header spinners use an untargeted `wire:loading`: the Refresh button reloads by dispatching an event, which commits as `__dispatch`, so `wire:target="load"` never matches it.
 
