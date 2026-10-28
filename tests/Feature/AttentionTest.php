@@ -62,5 +62,5 @@ it('asks to address the comments when there are no conflicts', function () {
 
     loaded('attention')->call('fix', 2);
 
-    Process::assertRan(fn ($process): bool => in_array('Address the review comments in the current PR', $process->command, true));
+    Process::assertRan(fn ($process): bool => in_array('Address every unresolved review thread on PR #2: for a valid comment, fix the code, react with a thumbs up to the comment, and resolve the thread. If you leave a comment as is, reply with why and leave the thread open.', $process->command, true));
 });

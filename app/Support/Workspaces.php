@@ -119,7 +119,7 @@ class Workspaces
             $url,
             $conflicts
                 ? sprintf(Config::string('orchestrator.prompts.merge_conflicts'), $branch)
-                : Config::string('orchestrator.prompts.review_comments'),
+                : sprintf(Config::string('orchestrator.prompts.review_comments'), $number),
         );
     }
 
