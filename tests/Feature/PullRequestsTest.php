@@ -97,3 +97,27 @@ it('moves the issue a title leads with to the meta line', function () {
         ->assertSeeHtml('href="https://github.com/a/b/issues/31387"')
         ->assertSee('for #31387');
 });
+
+// Only my reviews inside the window count — a PR merely touched since doesn't.
+it('counts the pull requests I reviewed in the last seven days', function () {
+    fakeGitHub(
+        reviewed: [pullRequestItem(1), pullRequestItem(2)],
+        reviews: ['PR_1' => [now()->subDays(2)->toIso8601String()], 'PR_2' => [now()->subDays(9)->toIso8601String()]],
+    );
+
+    loaded('prs')
+        ->assertSet('reviewedThisWeek', 1)
+        ->assertSee('1 review done in the last 7 days');
+});
+
+it('keeps the last review count when the lookup fails', function () {
+    fakeGitHub(reviewed: [pullRequestItem(1)], reviews: ['PR_1' => [now()->toIso8601String()]]);
+
+    $component = loaded('prs')->assertSet('reviewedThisWeek', 1);
+
+    Http::fake(['api.github.com/search/issues*' => Http::sequence()->push(['total_count' => 0, 'items' => []])->push([], 500)]);
+
+    $component->call('load')
+        ->assertSet('error', null)
+        ->assertSet('reviewedThisWeek', 1);
+});

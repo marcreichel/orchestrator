@@ -66,14 +66,17 @@ function fakeGitHub(
     array $checks = [],
     ?string $claimError = null,
     ?int $totalCount = null,
+    array $reviewed = [],
+    array $reviews = [],
 ): void {
     Http::fake([
         // The bug search is told apart by `type:Bug` — `no:assignee` won't do, the
         // second list's own fixture query uses it too.
-        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests, $totalCount) {
+        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests, $reviewed, $totalCount) {
             $url = $request->url();
 
             $items = match (true) {
+                str_contains($url, 'reviewed-by') => $reviewed,
                 str_contains($url, 'is%3Apr') => $pullRequests,
                 str_contains($url, 'assignee%3A%40me') => $assigned,
                 str_contains($url, 'type%3ABug') => $bugs,
@@ -83,7 +86,7 @@ function fakeGitHub(
             return Http::response(['total_count' => $totalCount ?? count($items), 'items' => $items]);
         },
 
-        'api.github.com/graphql' => function (Request $request) use ($statuses, $checks, $claimError) {
+        'api.github.com/graphql' => function (Request $request) use ($statuses, $checks, $reviews, $claimError) {
             $query = (string) $request['query'];
 
             return match (true) {
@@ -112,6 +115,21 @@ function fakeGitHub(
                     ])
                     ->values()
                     ->all()]]),
+
+                // $reviews: PR node id => submittedAt of my review, as the viewer "me".
+                str_contains($query, 'submittedAt') => Http::response(['data' => [
+                    'viewer' => ['login' => 'me'],
+                    'nodes' => collect($reviews)
+                        ->map(fn (array $submitted, string $id): array => [
+                            'id' => $id,
+                            'reviews' => ['nodes' => array_map(fn (string $at): array => [
+                                'submittedAt' => $at,
+                                'author' => ['login' => 'me'],
+                            ], $submitted)],
+                        ])
+                        ->values()
+                        ->all(),
+                ]]),
 
                 str_contains($query, 'statusCheckRollup') => Http::response(['data' => ['nodes' => collect($checks)
                     ->map(fn (string $state, string $id): array => [

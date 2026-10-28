@@ -7,6 +7,7 @@ namespace App\Support;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -108,6 +109,48 @@ class GitHub
             ], $items),
             'truncated' => $truncated,
         ];
+    }
+
+    /**
+     * How many pull requests I reviewed in the last seven days. The search only narrows
+     * by the PR's `updated` date, which a review always bumps, so it can't miss one; the
+     * exact `submittedAt` of my reviews then drops PRs merely touched since.
+     *
+     * @return array{count: int, truncated: bool}
+     */
+    public function reviewedThisWeek(): array
+    {
+        $since = now()->subDays(7);
+        ['items' => $items, 'truncated' => $truncated] = $this->searchItems(
+            self::scope($this->repoNames)." is:pr reviewed-by:@me updated:>={$since->toDateString()}",
+        );
+        $ids = array_map(fn (array $item): string => (string) $item['node_id'], $items);
+        $count = 0;
+
+        foreach (array_chunk($ids, self::NODES_PER_QUERY) as $chunk) {
+            $data = $this->graphql(<<<'GRAPHQL'
+                query ($ids: [ID!]!) {
+                  viewer { login }
+                  nodes(ids: $ids) {
+                    ... on PullRequest {
+                      id
+                      reviews(last: 100) { nodes { submittedAt author { login } } }
+                    }
+                  }
+                }
+                GRAPHQL, ['ids' => $chunk]);
+
+            $me = data_get($data, 'viewer.login');
+
+            foreach ((array) data_get($data, 'nodes', []) as $node) {
+                $count += collect((array) data_get($node, 'reviews.nodes', []))->contains(
+                    fn (mixed $review): bool => data_get($review, 'author.login') === $me
+                        && Carbon::parse((string) data_get($review, 'submittedAt'))->gte($since),
+                ) ? 1 : 0;
+            }
+        }
+
+        return ['count' => $count, 'truncated' => $truncated];
     }
 
     /**

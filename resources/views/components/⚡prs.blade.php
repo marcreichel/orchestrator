@@ -25,6 +25,11 @@ new #[Isolate] class extends Component
      */
     public array $reviewed = [];
 
+    /** Pull requests I reviewed in the last seven days; null until a lookup has worked. */
+    public ?int $reviewedThisWeek = null;
+
+    public bool $reviewedTruncated = false;
+
     public ?string $error = null;
 
     /** Cached list first, live one via `wire:init` — see the issues component. */
@@ -53,7 +58,13 @@ new #[Isolate] class extends Component
                 }
             }
 
-            Cache::forever(self::CACHE, $this->only('pullRequests', 'truncated', 'reviewed'));
+            // The stat is a footnote: if it fails the last number stays and the list is unaffected.
+            try {
+                ['count' => $this->reviewedThisWeek, 'truncated' => $this->reviewedTruncated] = app(GitHub::class)->reviewedThisWeek();
+            } catch (Throwable) {
+            }
+
+            Cache::forever(self::CACHE, $this->only('pullRequests', 'truncated', 'reviewed', 'reviewedThisWeek', 'reviewedTruncated'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->pullRequests = [];
@@ -87,8 +98,9 @@ new #[Isolate] class extends Component
 ?>
 
 {{-- 300s, not 5m — see the issues component. --}}
-<div wire:init="load" wire:poll.300s="load">
-    <x-lane title="Review requested" :count="count($pullRequests)" :truncated="$truncated" spinner>
+{{-- Flex column so the stat can sit at the foot of the panel even when the list is short. --}}
+<div wire:init="load" wire:poll.300s="load" class="flex flex-col">
+    <x-lane class="flex-1" title="Review requested" :count="count($pullRequests)" :truncated="$truncated" spinner>
         <x-section :count="count($pullRequests)" :error="$error" empty="No reviews waiting for you.">
             @foreach ($pullRequests as $pullRequest)
                 @php($reviewed = $reviewed[$pullRequest['number']] ?? [])
@@ -145,4 +157,8 @@ new #[Isolate] class extends Component
             @endforeach
         </x-section>
     </x-lane>
+
+    @if ($reviewedThisWeek !== null)
+        <p class="material sticky bottom-0 z-[5] -mx-4 mt-auto border-t border-line px-4 py-2 text-center text-xs text-muted tabular-nums">{{ $reviewedThisWeek }}{{ $reviewedTruncated ? '+' : '' }} {{ Str::plural('review', $reviewedThisWeek) }} done in the last 7 days</p>
+    @endif
 </div>
