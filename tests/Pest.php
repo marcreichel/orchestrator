@@ -53,6 +53,8 @@ function loaded(string $name): Testable
  * @param  array<int, array<string, mixed>>  $pullRequests
  * @param  array<string, string>  $statuses  Issue node id => board column it sits in.
  * @param  array<string, string>  $checks  Pull request node id => CI rollup state.
+ * @param  array<int, array<string, mixed>>  $mine  My own open pull requests.
+ * @param  array<string, array<string, mixed>>  $threads  Pull request node id => mergeable state and thread resolutions.
  * @param  int|null  $totalCount  What GitHub says it matched, when that is more than the
  *                                page it hands back. Defaults to the page's own size, so
  *                                a search reads as complete unless a test says otherwise.
@@ -68,15 +70,18 @@ function fakeGitHub(
     ?int $totalCount = null,
     array $reviewed = [],
     array $reviews = [],
+    array $mine = [],
+    array $threads = [],
 ): void {
     Http::fake([
         // The bug search is told apart by `type:Bug` — `no:assignee` won't do, the
         // second list's own fixture query uses it too.
-        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests, $reviewed, $totalCount) {
+        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests, $reviewed, $mine, $totalCount) {
             $url = $request->url();
 
             $items = match (true) {
                 str_contains($url, 'reviewed-by') => $reviewed,
+                str_contains($url, 'author%3A%40me') => $mine,
                 str_contains($url, 'is%3Apr') => $pullRequests,
                 str_contains($url, 'assignee%3A%40me') => $assigned,
                 str_contains($url, 'type%3ABug') => $bugs,
@@ -86,7 +91,7 @@ function fakeGitHub(
             return Http::response(['total_count' => $totalCount ?? count($items), 'items' => $items]);
         },
 
-        'api.github.com/graphql' => function (Request $request) use ($statuses, $checks, $reviews, $claimError) {
+        'api.github.com/graphql' => function (Request $request) use ($statuses, $checks, $reviews, $threads, $claimError) {
             $query = (string) $request['query'];
 
             return match (true) {
@@ -130,6 +135,17 @@ function fakeGitHub(
                         ->values()
                         ->all(),
                 ]]),
+
+                // $threads: PR node id => ['mergeable' => …, 'resolved' => [bool, …]].
+                str_contains($query, 'reviewThreads') => Http::response(['data' => ['nodes' => collect($threads)
+                    ->map(fn (array $thread, string $id): array => [
+                        'id' => $id,
+                        'headRefName' => 'feature/'.$id,
+                        'mergeable' => $thread['mergeable'] ?? 'MERGEABLE',
+                        'reviewThreads' => ['nodes' => array_map(fn (bool $resolved): array => ['isResolved' => $resolved], $thread['resolved'] ?? [])],
+                    ])
+                    ->values()
+                    ->all()]]),
 
                 str_contains($query, 'statusCheckRollup') => Http::response(['data' => ['nodes' => collect($checks)
                     ->map(fn (string $state, string $id): array => [

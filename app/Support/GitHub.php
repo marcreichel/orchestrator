@@ -112,6 +112,62 @@ class GitHub
     }
 
     /**
+     * My own open pull requests that need attention: they don't merge cleanly, or still
+     * have unresolved review threads (outdated ones included — GitHub's merge box blocks
+     * on them too). `mergeable` is computed lazily, so UNKNOWN counts as fine until the
+     * next refresh.
+     *
+     * @return array{items: array<int, array<string, mixed>>, truncated: bool}
+     */
+    public function attentionPullRequests(): array
+    {
+        ['items' => $items, 'truncated' => $truncated] = $this->searchItems(
+            self::scope($this->repoNames).' is:pr is:open author:@me -is:draft',
+        );
+        $found = [];
+
+        foreach (array_chunk($items, self::NODES_PER_QUERY) as $chunk) {
+            $data = $this->graphql(<<<'GRAPHQL'
+                query ($ids: [ID!]!) {
+                  nodes(ids: $ids) {
+                    ... on PullRequest {
+                      id
+                      headRefName
+                      mergeable
+                      reviewThreads(first: 100) { nodes { isResolved } }
+                    }
+                  }
+                }
+                GRAPHQL, ['ids' => array_map(fn (array $item): string => (string) $item['node_id'], $chunk)]);
+
+            foreach ((array) data_get($data, 'nodes', []) as $node) {
+                $found[(string) data_get($node, 'id')] = [
+                    'branch' => (string) data_get($node, 'headRefName'),
+                    'conflicts' => data_get($node, 'mergeable') === 'CONFLICTING',
+                    'unresolved' => collect((array) data_get($node, 'reviewThreads.nodes', []))
+                        ->where('isResolved', false)
+                        ->count(),
+                ];
+            }
+        }
+
+        $items = array_values(array_filter($items, fn (array $item): bool => ($found[(string) $item['node_id']]['conflicts'] ?? false)
+            || ($found[(string) $item['node_id']]['unresolved'] ?? 0) > 0));
+        $checks = $this->checkStates(array_map(fn (array $item): string => (string) $item['node_id'], $items));
+
+        return [
+            'items' => array_map(fn (array $item): array => [
+                'number' => (int) $item['number'],
+                'title' => (string) $item['title'],
+                'url' => (string) $item['html_url'],
+                'repo' => Str::after((string) $item['repository_url'], '/repos/'),
+                'check' => $checks[(string) $item['node_id']] ?? null,
+            ] + $found[(string) $item['node_id']], $items),
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
      * How many pull requests I reviewed in the last seven days. The search only narrows
      * by the PR's `updated` date, which a review always bumps, so it can't miss one; the
      * exact `submittedAt` of my reviews then drops PRs merely touched since.

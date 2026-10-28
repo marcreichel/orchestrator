@@ -99,7 +99,7 @@ new #[Isolate] class extends Component
 
 {{-- 300s, not 5m — see the issues component. --}}
 {{-- Flex column so the stat can sit at the foot of the panel even when the list is short. --}}
-<div wire:init="load" wire:poll.300s="load" class="flex flex-col">
+<div wire:init="load" wire:poll.300s="load" class="panel flex min-h-0 flex-1 flex-col pb-2 xl:overflow-y-auto xl:overscroll-contain xl:scroll-fade xl:[--lane-top:0px]">
     <x-lane class="flex-1" title="Review requested" :count="count($pullRequests)" :truncated="$truncated" spinner>
         <x-section :count="count($pullRequests)" :error="$error" empty="No reviews waiting for you.">
             @foreach ($pullRequests as $pullRequest)

@@ -84,7 +84,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | The Orca agent started in a freshly created workspace, and the first
-    | prompt it gets. `%d` is the issue or pull request number.
+    | prompt it gets. `%d` is the issue or pull request number; `%s` in `merge_conflicts`
+    | is the pull request's branch.
     |
     */
 
@@ -93,6 +94,8 @@ return [
     'prompts' => [
         'issue' => '/implement-issue %d',
         'pull_request' => '/my-pr-review %d',
+        'merge_conflicts' => '/merge-upstream %s',
+        'review_comments' => 'Address the review comments in the current PR',
     ],
 
 ];

@@ -105,6 +105,24 @@ class Workspaces
         );
     }
 
+    /**
+     * A workspace that fixes one of my own pull requests: merge conflicts take priority,
+     * since answering review comments on a branch that no longer merges is wasted work.
+     *
+     * @return array<string, mixed>
+     */
+    public static function forPullRequestFix(string $repo, int $number, string $url, string $branch, bool $conflicts): array
+    {
+        return self::start(
+            $repo,
+            "fix-{$number}",
+            $url,
+            $conflicts
+                ? sprintf(Config::string('orchestrator.prompts.merge_conflicts'), $branch)
+                : Config::string('orchestrator.prompts.review_comments'),
+        );
+    }
+
     /** Brings the workspace's first terminal to the front in Orca. */
     public static function open(string $id): void
     {

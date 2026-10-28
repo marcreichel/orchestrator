@@ -48,7 +48,13 @@
              with the page. Each still fetches in its own `wire:init` request, so a dead
              GitHub or Orca only takes out its own list. --}}
         <livewire:issues />
-        <livewire:prs />
+        {{-- Two panels in one column: the attention panel takes what it needs (and nothing
+             when it has no rows), the review list the rest. The grid's panel styling is
+             undone here — each panel brings its own. --}}
+        <div class="flex flex-col gap-4 !overflow-visible !border-0 !bg-transparent !p-0 after:!hidden xl:!overflow-visible">
+            <livewire:attention />
+            <livewire:prs />
+        </div>
         <livewire:workspaces />
     </div>
 </x-layout>
