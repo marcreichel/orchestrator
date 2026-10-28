@@ -5,10 +5,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title>{{ config('app.name') }}</title>
-
-        {{-- Same mark as the header, inline so there's no icon file to serve. Thicker
-             stroke: 1.5 vanishes at 16px. --}}
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23f7f8f8' stroke-width='2' stroke-linecap='round'><path d='M6 10h4V5h3M6 10h7M6 10h4v5h3'/><circle cx='4' cy='10' r='2.2' fill='%23f7f8f8' stroke='none'/><circle cx='15' cy='5' r='1.8'/><circle cx='15' cy='10' r='1.8'/><circle cx='15' cy='15' r='1.8'/></svg>">
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        <link rel="icon" href="/favicon.ico" sizes="48x48">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link rel="stylesheet" href="https://fonts.bunny.net/css?family=inter:400,500,600|jetbrains-mono:400,500&display=swap">
@@ -25,14 +24,9 @@
                  than overlaps. --}}
             <div class="mx-auto grid h-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 sm:px-6 lg:max-w-[100rem]">
                 <div class="flex items-center">
-                    <h1 class="text-lg font-medium tracking-[-.02em]">
+                    <h1 class="flex text-lg font-semibold tracking-[-.03em]">
                         <a href="{{ route('home') }}" class="inline-flex items-center gap-2.5">
-                            <svg width="26" height="26" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-                                 stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-                                <path d="M6 10h4V5h3M6 10h7M6 10h4v5h3"/>
-                                <circle cx="4" cy="10" r="2" fill="currentColor" stroke="none"/>
-                                <circle cx="15" cy="5" r="1.6"/><circle cx="15" cy="10" r="1.6"/><circle cx="15" cy="15" r="1.6"/>
-                            </svg>
+                            <svg width="26" height="26" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="5" height="14" rx="2.5"/><rect x="13.5" y="9" width="5" height="14" rx="2.5"/><rect x="21" y="13" width="5" height="14" rx="2.5"/></svg>
                             {{ config('app.name') }}
                         </a>
                     </h1>
