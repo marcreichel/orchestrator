@@ -126,6 +126,23 @@ class Workspaces
         self::focusOrca();
     }
 
+    /**
+     * Dev servers listening in the workspace. Asked for on demand: it is one scan of the
+     * host per workspace, too much to repeat for every row on every refresh.
+     *
+     * @return array<int, array{port: int, url: string}>
+     */
+    public static function ports(string $id): array
+    {
+        /** @var array<int, array<string, mixed>> $ports */
+        $ports = self::orca(['ports', '--worktree', "id:{$id}"])['ports'] ?? [];
+
+        return array_map(fn (array $port): array => [
+            'port' => $port['port'],
+            'url' => $port['advertisedUrl'] ?? "http://{$port['connectHost']}:{$port['port']}",
+        ], $ports);
+    }
+
     /** Removes the worktree from Orca and git; the branch stays. */
     public static function remove(string $id): void
     {

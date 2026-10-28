@@ -51,6 +51,17 @@ new #[Isolate] class extends Component
         $this->act(fn () => Workspaces::showChanges($id));
     }
 
+    public function showPorts(string $id): void
+    {
+        $this->act(function () use ($id): void {
+            foreach ($this->workspaces as $index => $workspace) {
+                if ($workspace['id'] === $id) {
+                    $this->workspaces[$index]['ports'] = Workspaces::ports($id);
+                }
+            }
+        });
+    }
+
     public function remove(string $id): void
     {
         $this->act(fn () => Workspaces::remove($id));
@@ -115,8 +126,19 @@ new #[Isolate] class extends Component
                 <span class="inline-flex gap-2 text-sm text-muted">
                     <button type="button" wire:click="open('{{ $workspace['id'] }}')" class="hover:underline">Open</button>
                     <button type="button" wire:click="showChanges('{{ $workspace['id'] }}')" class="hover:underline">Diff</button>
+                    <button type="button" wire:click="showPorts('{{ $workspace['id'] }}')" class="hover:underline">Ports</button>
                     <button type="button" wire:click="remove('{{ $workspace['id'] }}')" wire:confirm="Remove this workspace? The branch stays." class="hover:underline">Remove</button>
                 </span>
+
+                @isset($workspace['ports'])
+                    <span class="basis-full text-right text-sm text-muted">
+                        @forelse ($workspace['ports'] as $port)
+                            <a href="{{ $port['url'] }}" target="_blank" class="ml-2 hover:underline">:{{ $port['port'] }}</a>
+                        @empty
+                            No ports listening
+                        @endforelse
+                    </span>
+                @endisset
             </li>
         @endforeach
     </x-section>

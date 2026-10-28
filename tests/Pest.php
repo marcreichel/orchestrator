@@ -214,7 +214,7 @@ function linkedWorktree(int $number, string $url, array $attributes = []): array
  * @param  array<int, array<string, mixed>>  $repos
  * @param  array<string, mixed>|null  $created
  */
-function fakeOrca(array $worktrees = [], array $repos = [], ?array $created = null, array $terminals = [['handle' => 'term_1']]): void
+function fakeOrca(array $worktrees = [], array $repos = [], ?array $created = null, array $terminals = [['handle' => 'term_1']], array $ports = []): void
 {
     $ok = fn (array $result) => Process::result(json_encode(['ok' => true, 'result' => $result]));
 
@@ -222,6 +222,7 @@ function fakeOrca(array $worktrees = [], array $repos = [], ?array $created = nu
         // Array commands reach the fake shell-quoted: 'orca' 'worktree' 'list'.
         "*'worktree' 'ps'*" => $ok(['worktrees' => $worktrees]),
         "*'terminal' 'list'*" => $ok(['terminals' => $terminals]),
+        "*'ports'*" => $ok(['ports' => $ports]),
         "*'terminal' 'switch'*" => $ok([]),
         "*'open' '-a' 'Orca'*" => Process::result(),
         "*'file' 'open-changed'*" => $ok([]),

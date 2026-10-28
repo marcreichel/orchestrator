@@ -131,3 +131,24 @@ it('removes a workspace and drops its row', function () {
 
     Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'worktree rm --worktree id:repo-1::/orca/feature-1'));
 });
+
+it('lists the ports a workspace is listening on, falling back to the host and port', function () {
+    fakeOrca([worktree()], ports: [
+        ['port' => 3000, 'connectHost' => '127.0.0.1', 'advertisedUrl' => 'http://localhost:3000'],
+        ['port' => 8080, 'connectHost' => '127.0.0.1'],
+    ]);
+
+    loaded('workspaces')
+        ->call('showPorts', 'repo-1::/orca/feature-1')
+        ->assertSet('workspaces.0.ports', [
+            ['port' => 3000, 'url' => 'http://localhost:3000'],
+            ['port' => 8080, 'url' => 'http://127.0.0.1:8080'],
+        ])
+        ->assertSee(':8080');
+});
+
+it('says so when a workspace listens on no ports', function () {
+    fakeOrca([worktree()]);
+
+    loaded('workspaces')->call('showPorts', 'repo-1::/orca/feature-1')->assertSee('No ports listening');
+});
