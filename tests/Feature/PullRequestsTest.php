@@ -107,7 +107,7 @@ it('counts the pull requests I reviewed in the last seven days', function () {
 
     loaded('prs')
         ->assertSet('reviewedThisWeek', 1)
-        ->assertSee('1 review done in the last 7 days');
+        ->assertSee('1 pull request reviewed in the last 7 days');
 });
 
 it('keeps the last review count when the lookup fails', function () {

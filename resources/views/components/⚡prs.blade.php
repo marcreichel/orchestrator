@@ -159,6 +159,6 @@ new #[Isolate] class extends Component
     </x-lane>
 
     @if ($reviewedThisWeek !== null)
-        <p class="material sticky bottom-0 z-[5] -mx-4 mt-auto border-t border-line px-4 py-2 text-center text-xs text-muted tabular-nums">{{ $reviewedThisWeek }}{{ $reviewedTruncated ? '+' : '' }} {{ Str::plural('review', $reviewedThisWeek) }} done in the last 7 days</p>
+        <p class="material sticky bottom-0 z-[5] -mx-4 mt-auto border-t border-line px-4 py-2 text-center text-xs text-muted tabular-nums">{{ $reviewedThisWeek }}{{ $reviewedTruncated ? '+' : '' }} {{ Str::plural('pull request', $reviewedThisWeek) }} reviewed in the last 7 days</p>
     @endif
 </div>
