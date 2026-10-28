@@ -8,7 +8,7 @@
 
         {{-- Same mark as the header, inline so there's no icon file to serve. Thicker
              stroke: 1.5 vanishes at 16px. --}}
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236ee7a8' stroke-width='2' stroke-linecap='round'><path d='M6 10h4V5h3M6 10h7M6 10h4v5h3'/><circle cx='4' cy='10' r='2.2' fill='%236ee7a8' stroke='none'/><circle cx='15' cy='5' r='1.8'/><circle cx='15' cy='10' r='1.8'/><circle cx='15' cy='15' r='1.8'/></svg>">
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23f7f8f8' stroke-width='2' stroke-linecap='round'><path d='M6 10h4V5h3M6 10h7M6 10h4v5h3'/><circle cx='4' cy='10' r='2.2' fill='%23f7f8f8' stroke='none'/><circle cx='15' cy='5' r='1.8'/><circle cx='15' cy='10' r='1.8'/><circle cx='15' cy='15' r='1.8'/></svg>">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link rel="stylesheet" href="https://fonts.bunny.net/css?family=inter:400,500,600|jetbrains-mono:400,500&display=swap">
