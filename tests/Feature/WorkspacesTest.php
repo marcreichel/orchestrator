@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Process;
 
 beforeEach(function () {
     config()->set('orchestrator.repos', ['a/b' => 'repo-1']);
@@ -23,7 +24,7 @@ it('lists only the workspaces of mapped repositories, newest first', function ()
         ->assertDontSee('not-mine')
         ->assertDontSee('archived');
 
-    assertOrcaCalled('worktree list', 1);
+    assertOrcaCalled('worktree ps', 1);
 });
 
 it('shows the linked issue when Orca returns one', function () {
@@ -88,4 +89,43 @@ it('shows the failure instead of the list', function () {
     fakeOrcaFailing('Orca is not running');
 
     loaded('workspaces')->assertSee('Orca is not running');
+});
+
+it('shows what the agent in a workspace is doing', function () {
+    fakeOrca([worktree(['status' => 'working'])]);
+
+    loaded('workspaces')->assertSee('working · in-progress');
+});
+
+it('brings the first terminal of a workspace to the front', function () {
+    fakeOrca([worktree()]);
+
+    loaded('workspaces')->call('open', 'repo-1::/orca/feature-1')->assertSet('error', null);
+
+    Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'terminal switch --terminal term_1'));
+});
+
+it('says so when a workspace has no live terminal to open', function () {
+    fakeOrca([worktree()], terminals: []);
+
+    loaded('workspaces')->call('open', 'repo-1::/orca/feature-1')->assertSet('error', 'This workspace has no live terminal');
+});
+
+it('opens the changed files of a workspace as diffs', function () {
+    fakeOrca([worktree()]);
+
+    loaded('workspaces')->call('showChanges', 'repo-1::/orca/feature-1');
+
+    Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'open-changed --mode diff --focus --worktree id:repo-1::/orca/feature-1'));
+});
+
+it('removes a workspace and drops its row', function () {
+    fakeOrca([worktree()]);
+
+    loaded('workspaces')
+        ->assertCount('workspaces', 1)
+        ->call('remove', 'repo-1::/orca/feature-1')
+        ->assertCount('workspaces', 0);
+
+    Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'worktree rm --worktree id:repo-1::/orca/feature-1'));
 });

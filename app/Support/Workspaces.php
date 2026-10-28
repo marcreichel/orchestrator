@@ -38,7 +38,7 @@ class Workspaces
                 $repoIds = array_values(Config::array('orchestrator.repos'));
 
                 /** @var array<int, array<string, mixed>> $worktrees */
-                $worktrees = self::orca(['worktree', 'list'])['worktrees'] ?? [];
+                $worktrees = self::orca(['worktree', 'ps', '--limit', '500'])['worktrees'] ?? [];
 
                 // Orca lists the main checkout and archived worktrees too; neither is a
                 // workspace this app started.
@@ -103,6 +103,33 @@ class Workspaces
             $url,
             sprintf(Config::string('orchestrator.prompts.pull_request'), $number),
         );
+    }
+
+    /** Brings the workspace's first terminal to the front in Orca. */
+    public static function open(string $id): void
+    {
+        /** @var array<int, array<string, mixed>> $terminals */
+        $terminals = self::orca(['terminal', 'list', '--worktree', "id:{$id}"])['terminals'] ?? [];
+
+        if ($terminals === []) {
+            throw new RuntimeException('This workspace has no live terminal');
+        }
+
+        self::orca(['terminal', 'switch', '--terminal', $terminals[0]['handle']]);
+    }
+
+    /** Opens the workspace's changed files as diff tabs and brings Orca to them. */
+    public static function showChanges(string $id): void
+    {
+        self::orca(['file', 'open-changed', '--mode', 'diff', '--focus', '--worktree', "id:{$id}"]);
+        Cache::forget('orchestrator.workspaces.all');
+    }
+
+    /** Removes the worktree from Orca and git; the branch stays. */
+    public static function remove(string $id): void
+    {
+        self::orca(['worktree', 'rm', '--worktree', "id:{$id}"], 120);
+        Cache::forget('orchestrator.workspaces.all');
     }
 
     /**
@@ -189,9 +216,12 @@ class Workspaces
         return [
             // What a row is keyed on — a branch can be shared, and the position shifts
             // every time a freshly played workspace is put on the front.
-            'id' => $worktree['id'],
+            'id' => $worktree['worktreeId'] ?? $worktree['id'],
             'branch' => $branch,
             'status' => $status,
+            // What the agent in it is doing: working, active or inactive. A fresh create
+            // answers without it, and one has just been started then.
+            'agent' => $worktree['status'] ?? 'working',
             // What a played row shows, whether the workspace was just created or already existed.
             'label' => "✓ {$branch} · {$status}",
             'age' => $createdAt?->diffForHumans(short: true),

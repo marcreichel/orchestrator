@@ -41,6 +41,33 @@ new #[Isolate] class extends Component
         }
     }
 
+    public function open(string $id): void
+    {
+        $this->act(fn () => Workspaces::open($id));
+    }
+
+    public function showChanges(string $id): void
+    {
+        $this->act(fn () => Workspaces::showChanges($id));
+    }
+
+    public function remove(string $id): void
+    {
+        $this->act(fn () => Workspaces::remove($id));
+        $this->workspaces = array_values(array_filter($this->workspaces, fn (array $workspace): bool => $workspace['id'] !== $id));
+    }
+
+    /** A failed action shows on the section, like a failed load. */
+    private function act(\Closure $action): void
+    {
+        try {
+            $action();
+            $this->error = null;
+        } catch (Throwable $exception) {
+            $this->error = $exception->getMessage();
+        }
+    }
+
     /**
      * A freshly played issue or pull request already carries its workspace row, so it
      * is listed without refetching.
@@ -77,13 +104,19 @@ new #[Isolate] class extends Component
                 @endif
 
                 <span class="inline-flex items-center gap-1.5 text-sm text-muted">
-                    <x-dot :state="$workspace['status']" />{{ $workspace['status'] }}
+                    <x-dot :state="match ($workspace['agent'] ?? null) { 'working' => 'pending', 'active' => 'active', default => null }" />{{ $workspace['agent'] ?? 'inactive' }} · {{ $workspace['status'] }}
                 </span>
 
                 @if ($workspace['age'])
                     {{-- Rendered server-side, so it stays put until the next refresh. --}}
                     <span class="text-sm text-muted" title="{{ $workspace['createdAt'] }}">{{ $workspace['age'] }}</span>
                 @endif
+
+                <span class="inline-flex gap-2 text-sm text-muted">
+                    <button type="button" wire:click="open('{{ $workspace['id'] }}')" class="hover:underline">Open</button>
+                    <button type="button" wire:click="showChanges('{{ $workspace['id'] }}')" class="hover:underline">Diff</button>
+                    <button type="button" wire:click="remove('{{ $workspace['id'] }}')" wire:confirm="Remove this workspace? The branch stays." class="hover:underline">Remove</button>
+                </span>
             </li>
         @endforeach
     </x-section>

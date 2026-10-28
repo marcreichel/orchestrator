@@ -219,7 +219,7 @@ it('fetches the workspaces once for every list of a refresh', function () {
     loaded('prs');
     loaded('workspaces');
 
-    assertOrcaCalled('worktree list', 1);
+    assertOrcaCalled('worktree ps', 1);
 });
 
 it('shows the failure instead of the list', function () {

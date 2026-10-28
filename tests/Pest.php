@@ -181,7 +181,8 @@ function pullRequestItem(int $number, string $author = 'octocat', string $repo =
 function worktree(array $attributes = []): array
 {
     return $attributes + [
-        'id' => 'repo-1::/orca/feature-1',
+        'worktreeId' => 'repo-1::/orca/feature-1',
+        'status' => 'inactive',
         'repoId' => 'repo-1',
         'branch' => 'refs/heads/feature/1',
         'isMainWorktree' => false,
@@ -213,13 +214,17 @@ function linkedWorktree(int $number, string $url, array $attributes = []): array
  * @param  array<int, array<string, mixed>>  $repos
  * @param  array<string, mixed>|null  $created
  */
-function fakeOrca(array $worktrees = [], array $repos = [], ?array $created = null): void
+function fakeOrca(array $worktrees = [], array $repos = [], ?array $created = null, array $terminals = [['handle' => 'term_1']]): void
 {
     $ok = fn (array $result) => Process::result(json_encode(['ok' => true, 'result' => $result]));
 
     Process::fake([
         // Array commands reach the fake shell-quoted: 'orca' 'worktree' 'list'.
-        "*'worktree' 'list'*" => $ok(['worktrees' => $worktrees]),
+        "*'worktree' 'ps'*" => $ok(['worktrees' => $worktrees]),
+        "*'terminal' 'list'*" => $ok(['terminals' => $terminals]),
+        "*'terminal' 'switch'*" => $ok([]),
+        "*'file' 'open-changed'*" => $ok([]),
+        "*'worktree' 'rm'*" => $ok([]),
         "*'worktree' 'create'*" => $ok(['worktree' => $created ?? worktree()]),
         "*'repo' 'list'*" => $ok(['repos' => $repos]),
     ]);
@@ -234,11 +239,11 @@ function fakeOrcaFailing(string $message): void
     $failure = Process::result(errorOutput: $message, exitCode: 1);
 
     // The same patterns fakeOrca() registers — an earlier, more specific one would win over a `*`.
-    Process::fake(["*'worktree' 'list'*" => $failure, "*'worktree' 'create'*" => $failure, "*'repo' 'list'*" => $failure]);
+    Process::fake(["*'worktree' 'ps'*" => $failure, "*'terminal' 'list'*" => $failure, "*'worktree' 'create'*" => $failure, "*'repo' 'list'*" => $failure]);
     Process::preventStrayProcesses();
 }
 
-/** Assert the CLI was called exactly this many times with this subcommand, e.g. `worktree list`. */
+/** Assert the CLI was called exactly this many times with this subcommand, e.g. `worktree ps`. */
 function assertOrcaCalled(string $subcommand, int $times): void
 {
     Process::assertRanTimes(fn ($process): bool => str_contains(implode(' ', (array) $process->command), $subcommand), $times);
