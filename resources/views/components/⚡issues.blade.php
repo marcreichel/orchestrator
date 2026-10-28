@@ -217,7 +217,7 @@ new #[Isolate] class extends Component
                     <li wire:key="{{ $issue['id'] }}" class="row group/row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
                         <span class="text-right font-mono text-xs text-muted tabular-nums">#{{ $issue['number'] }}</span>
 
-                        <div class="min-w-0">
+                        <div class="min-w-0 text-pretty">
                             <a href="{{ $issue['url'] }}" target="_blank" class="[overflow-wrap:anywhere] hover:underline">{{ $issue['title'] }}</a>
 
                             @if ($issue['labels'] || $played)

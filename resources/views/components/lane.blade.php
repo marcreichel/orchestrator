@@ -21,7 +21,7 @@
              Livewire component — elsewhere nothing ever hides it again. --}}
         @if ($spinner)
             <span wire:loading role="status" aria-label="Refreshing"
-                  class="ml-auto size-3 shrink-0 animate-spin rounded-full border border-line border-t-muted"></span>
+                  class="ml-auto size-3 shrink-0 animate-spin rounded-full border border-muted/30 border-t-muted"></span>
         @endif
     </header>
 

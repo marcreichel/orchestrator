@@ -4,7 +4,12 @@
 
 @theme {
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    /* Inter's single-storey a, open digits and curly quotes, as on onorca.dev. Inter only:
+       JetBrains Mono uses the same feature tags for different glyphs. */
+    --font-sans--font-feature-settings: 'cv11', 'ss01', 'ss03';
     --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    /* Set, so font-mono resets the settings it would otherwise inherit from Inter. */
+    --font-mono--font-feature-settings: normal;
 
     /* Untinted neutrals after onorca.dev; mint, amber and rose are the only signal colours.
        Lines are translucent white, so they read the same on ink and on surface. */
@@ -139,13 +144,13 @@
     &::after {
         content: '';
         /* Sticky insets count from inside the scroller's padding, so reach past the
-           panel's pb-2 to sit on its edge. */
+           panel's pb-2 to sit on its edge, and past its 1rem side padding to span it. */
         position: sticky;
         bottom: -0.5rem;
         z-index: 5;
         display: block;
         height: 2rem;
-        margin-top: -2rem;
+        margin: -2rem -1rem 0;
         pointer-events: none;
         background: linear-gradient(transparent, var(--color-surface));
         opacity: 0;

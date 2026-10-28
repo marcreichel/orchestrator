@@ -98,7 +98,7 @@ new #[Isolate] class extends Component
                 <li wire:key="{{ $pullRequest['number'] }}" class="row group/row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
                     <span class="text-right font-mono text-xs text-muted tabular-nums">#{{ $pullRequest['number'] }}</span>
 
-                    <div class="min-w-0">
+                    <div class="min-w-0 text-pretty">
                         {{-- Three lines at most, full text on hover — fewer cut long scoped titles mid-word. --}}
                         <a href="{{ $pullRequest['url'] }}" target="_blank" title="{{ $pullRequest['title'] }}"
                            class="line-clamp-3 [overflow-wrap:anywhere] hover:underline">{{ $leading[2] ?? $pullRequest['title'] }}</a>
