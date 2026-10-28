@@ -23,7 +23,6 @@ it('renders the cached lists without fetching', function () {
     Cache::forever('orchestrator.issues', [
         'assigned' => [['id' => 'I_1', 'number' => 1, 'title' => 'Cached issue', 'url' => '', 'labels' => []]],
         'other' => [],
-        'claim' => [],
         'played' => [],
     ]);
     Cache::forever('orchestrator.workspaces', ['workspaces' => [[
@@ -40,8 +39,8 @@ it('renders the cached lists without fetching', function () {
     $this->get('/')
         ->assertSee('Cached issue')
         ->assertSee('cached-branch')
-        // Nothing cached for the pull requests yet.
-        ->assertSee('Loading…')
+        // Nothing cached for the pull requests yet: placeholder rows, named for screen readers.
+        ->assertSeeHtml('<li class="sr-only">Loading…</li>')
         ->assertSeeHtml('wire:init="load"')
         // Every five minutes. Not `.5m`: wire:poll parses only `ms` and `s`, so an
         // unparsed modifier would quietly poll at the 2s default.

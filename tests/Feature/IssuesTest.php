@@ -138,9 +138,9 @@ it('shows the existing workspace instead of a play button', function () {
 
     loaded('issues')
         ->assertSee('✓ feature/1 · in-progress')
-        ->assertDontSeeHtml('wire:click="play(\'I_1\')"')
+        ->assertDontSeeHtml('wire:click="play(\'I_1\'')
         // The unplayed issue keeps its ▶.
-        ->assertSeeHtml('wire:click="play(\'I_2\')"');
+        ->assertSeeHtml('wire:click="play(\'I_2\', ! $event.altKey)"');
 });
 
 it('keeps the issues playable when the workspace lookup fails', function () {
@@ -151,7 +151,7 @@ it('keeps the issues playable when the workspace lookup fails', function () {
     loaded('issues')
         ->assertSet('error', null)
         ->assertSee('Issue 1')
-        ->assertSeeHtml('wire:click="play(\'I_1\')"');
+        ->assertSeeHtml('wire:click="play(\'I_1\', ! $event.altKey)"');
 });
 
 // A dead Orca can't tell a played issue from an unplayed one, so a refresh during
@@ -172,19 +172,20 @@ it('keeps the played marks when the workspace lookup fails', function () {
     expect(Cache::get('orchestrator.issues')['played'])->toBe(['I_1' => ['status' => '✓ feature/1 · in-progress']]);
 });
 
-// The five-minute poll runs load() too, so refilling every box would silently undo a
-// decision the user made minutes ago.
-it('leaves a cleared claim checkbox cleared across a refresh', function () {
-    fakeGitHub(assigned: [issueItem(1), issueItem(2)]);
+// ⌥-click plays without claiming: the workspace starts, the issue stays where it is,
+// and so does its row.
+it('plays without claiming on option-click', function () {
+    fakeGitHub(assigned: [issueItem(1)]);
 
-    $component = loaded('issues')
-        ->assertSet('claim.I_1', true)
-        ->set('claim.I_1', false)
-        ->call('load');
+    fakeOrca();
 
-    $component->assertSet('claim.I_1', false)
-        // The one that was never touched still defaults to checked.
-        ->assertSet('claim.I_2', true);
+    loaded('issues')
+        ->call('play', 'I_1', false)
+        ->assertDispatchedTo('workspaces', 'workspace-created')
+        ->assertSee('✓ feature/1 · in-progress')
+        ->assertSet('played.I_1.drop', false);
+
+    Http::assertNotSent(fn (Request $request): bool => str_contains(graphqlDocument($request), 'updateProjectV2ItemFieldValue'));
 });
 
 // Only the first page of a search is ever fetched, so a capped list has to say so
@@ -241,5 +242,7 @@ it('shows the failure instead of the list', function () {
 
     loaded('issues')
         ->assertCount('assigned', 0)
-        ->assertSee('401');
+        ->assertSee('401')
+        // A failed refresh still ends the header's "Updating…".
+        ->assertDispatched('refreshed');
 });

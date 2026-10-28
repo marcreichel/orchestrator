@@ -8,6 +8,10 @@
         @case('play')
             <path d="M5.5 3.5v9l7-4.5z" fill="currentColor"/>
             @break
+        @case('review')
+            <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/>
+            <circle cx="8" cy="8" r="2"/>
+            @break
         @case('open')
             <path d="M6.5 3.5h6v6M12.5 3.5l-8 8"/>
             @break

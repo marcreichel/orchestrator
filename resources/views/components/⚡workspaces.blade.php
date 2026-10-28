@@ -39,6 +39,8 @@ new #[Isolate] class extends Component
             $this->error = $exception->getMessage();
             $this->workspaces = [];
         }
+
+        $this->dispatch('refreshed');
     }
 
     public function open(string $id): void
@@ -125,7 +127,7 @@ new #[Isolate] class extends Component
                     wire:loading.class="opacity-40" wire:target="remove('{{ $workspace['id'] ?? '' }}')"
                     class="row flex gap-3 py-2.5">
                     {{-- The signal strip: the agent's state, readable down the lane at a glance. --}}
-                    <x-dot bar :state="match ($workspace['agent'] ?? null) { 'working' => 'pending', 'active' => 'active', default => null }" />
+                    <x-dot bar :state="match ($workspace['agent'] ?? null) { 'working' => 'working', 'active' => 'active', default => null }" />
 
                     <div class="min-w-0 flex-1">
                         <div class="flex items-start gap-3">

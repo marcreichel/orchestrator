@@ -2,9 +2,10 @@
 @props(['title', 'count' => null, 'truncated' => false, 'spinner' => false])
 
 <section {{ $attributes }}>
-    {{-- Sticky under the page header (top-15 is its height), so a long lane keeps its name.
-         Fixed h-10 — the list headings below pin themselves at the sum of the two. --}}
-    <header class="material sticky top-15 z-[5] flex h-10 items-center gap-2 border-t-2 border-line">
+    {{-- Sticky under the page header (3.75rem is its height), so a long lane keeps its name —
+         or at the top of its own scroller, where the dashboard sets --lane-top. Fixed h-10:
+         the list headings below pin themselves at the sum of the two. --}}
+    <header class="material sticky top-[var(--lane-top,3.75rem)] z-[5] flex h-10 items-center gap-2 border-t-2 border-line">
         <h2 class="text-[15px] font-semibold tracking-[-.01em]">{{ $title }}</h2>
 
         {{-- A search only ever asks for its first page, so a capped list gets a `+` and says

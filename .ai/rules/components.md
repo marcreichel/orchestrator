@@ -19,3 +19,6 @@ Header spinners use an untargeted `wire:loading`: the Refresh button reloads by 
 
 ## Keep wire:click on plain elements, not on Blade components
 Attributes passed to a Blade component are escaped, so `wire:click="play('I_1')"` renders as `play(&#039;I_1&#039;)`. Livewire still works, but the `assertSeeHtml('wire:click="play(\'I_1\')"')` tests stop matching. That's why the row actions are plain `<button class="icon-btn">` with an `<x-icon>` inside, and not an icon-button component.
+
+## Parameterised wire:target matches exact arguments only
+`wire:target="play('I_1')"` only matches a call whose params JSON-equal `['I_1']`. When `wire:click` passes a runtime argument (e.g. `play('I_1', ! $event.altKey)` for ⌥-click), list every variant: `wire:target="play('I_1', true), play('I_1', false)"`. A bare `wire:target="play"` would light up every row's spinner.

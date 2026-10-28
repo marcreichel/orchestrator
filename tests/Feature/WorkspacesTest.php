@@ -95,7 +95,10 @@ it('shows the failure instead of the list', function () {
 it('shows what the agent in a workspace is doing', function () {
     fakeOrca([worktree(['status' => 'working'])]);
 
-    loaded('workspaces')->assertSee('working · in-progress');
+    loaded('workspaces')
+        ->assertSee('working · in-progress')
+        // The signal strip breathes while the agent works.
+        ->assertSeeHtml('animate-pulse');
 });
 
 it('brings the first terminal of a workspace to the front', function () {

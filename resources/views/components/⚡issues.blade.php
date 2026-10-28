@@ -31,10 +31,6 @@ new #[Isolate] class extends Component
      */
     public array $truncated = [];
 
-    /** Claim checkbox state, per issue node id. */
-    /** @var array<string, bool> */
-    public array $claim = [];
-
     /**
      * What playing an issue did: `status` once the workspace exists, `error` if
      * anything failed, `drop` when the row should remove itself.
@@ -97,11 +93,6 @@ new #[Isolate] class extends Component
             $this->bugs = $keep($bugs);
 
             $ids = array_flip(array_column($this->issues(), 'id'));
-
-            // New issues start checked, but a box the user cleared stays cleared — the
-            // five-minute poll runs this too, and re-ticking it under them would undo the
-            // decision without asking.
-            $this->claim = array_intersect_key($this->claim, $ids) + array_fill_keys(array_keys($ids), true);
             $this->error = null;
 
             // An issue that already has a workspace is shown as played: no ▶, no checkbox.
@@ -117,14 +108,21 @@ new #[Isolate] class extends Component
                 }
             }
 
-            Cache::forever(self::CACHE, $this->only('assigned', 'other', 'bugs', 'truncated', 'claim', 'played'));
+            Cache::forever(self::CACHE, $this->only('assigned', 'other', 'bugs', 'truncated', 'played'));
         } catch (Throwable $exception) {
             $this->error = $exception->getMessage();
             $this->assigned = $this->other = $this->bugs = [];
         }
+
+        // Failed or not, the list is as fresh as it gets — the header's "Updated" time.
+        $this->dispatch('refreshed');
     }
 
-    public function play(string $id): void
+    /**
+     * Start a workspace for the issue and, unless `$claim` is off (⌥-click), assign it
+     * to me and move it to the started column.
+     */
+    public function play(string $id, bool $claim = true): void
     {
         $issue = collect($this->issues())->firstWhere('id', $id);
 
@@ -146,7 +144,7 @@ new #[Isolate] class extends Component
         // Claiming happens after the workspace, so a failed play leaves the issue untouched.
         $error = null;
 
-        if ($this->claim[$id] ?? false) {
+        if ($claim) {
             try {
                 app(Board::class)->claim($id);
             } catch (Throwable $exception) {
@@ -158,7 +156,7 @@ new #[Isolate] class extends Component
             'status' => $workspace['label'],
             'error' => $error,
             // A claimed issue is in flight now — the row drops itself once the ✓ is readable.
-            'drop' => ($this->claim[$id] ?? false) && $error === null,
+            'drop' => $claim && $error === null,
         ];
     }
 
@@ -170,12 +168,12 @@ new #[Isolate] class extends Component
         $this->other = array_values(array_filter($this->other, $keep));
         $this->bugs = array_values(array_filter($this->bugs, $keep));
 
-        unset($this->played[$id], $this->claim[$id]);
+        unset($this->played[$id]);
     }
 
     /**
-     * Every listed issue, in section order — what play(), the claim state and the
-     * workspace lookup all work on.
+     * Every listed issue, in section order — what play() and the workspace lookup
+     * work on.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -216,7 +214,7 @@ new #[Isolate] class extends Component
                 @foreach ($issues as $issue)
                     @php($played = $played[$issue['id']] ?? [])
                     {{-- Fixed number column, so titles line up whatever the number's width. --}}
-                    <li wire:key="{{ $issue['id'] }}" class="row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
+                    <li wire:key="{{ $issue['id'] }}" class="row group/row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
                         <span class="text-right font-mono text-xs text-muted tabular-nums">#{{ $issue['number'] }}</span>
 
                         <div class="min-w-0">
@@ -225,9 +223,10 @@ new #[Isolate] class extends Component
                             @if ($issue['labels'] || $played)
                                 <div class="mt-1 flex flex-wrap items-center gap-1.5">
                                     {{-- GitHub label colours can be near-black, so tint the chip instead of
-                                         colouring the text — readable whatever colour the label happens to be. --}}
+                                         colouring the text — readable whatever colour the label happens to be.
+                                         Fixed height: an emoji in the name would otherwise make its chip taller. --}}
                                     @foreach (array_slice($issue['labels'], 0, 3) as $label)
-                                        <span class="label-chip rounded-full px-1.5 text-[11px]/4 whitespace-nowrap"
+                                        <span class="label-chip inline-flex h-[18px] items-center rounded-full px-1.5 text-[11px] whitespace-nowrap"
                                               style="--label:#{{ $label['color'] }}">{{ $label['name'] }}</span>
                                     @endforeach
 
@@ -249,20 +248,19 @@ new #[Isolate] class extends Component
                         </div>
 
                         <div class="-mt-[3px] flex items-center gap-1.5 self-start">
-                            {{-- aria-label on both: a bare ▶ and an unlabelled checkbox have no
-                                 accessible name at all, and `title` is not a reliable one.
-                                 Claiming is the default, so a ticked box stays faint and an
-                                 unticked one — the decision worth seeing — stands out. --}}
+                            {{-- aria-label, not just title: a bare ▶ has no reliable accessible name.
+                                 Muted until its row is hovered, so the lane's mint is left for
+                                 state. ⌥-click passes claim=false; the target lists both calls,
+                                 since a parameterised target only matches its exact arguments. --}}
                             @unless (isset($played['status']))
-                                <input type="checkbox" wire:model="claim.{{ $issue['id'] }}" class="size-3.5 cursor-pointer accent-muted opacity-40 transition-opacity not-checked:opacity-100 hover:opacity-100 focus-visible:opacity-100"
-                                       aria-label="Claim issue #{{ $issue['number'] }}"
-                                       title="Assign to me and move to {{ config('orchestrator.board.started') }}">
-                                <button wire:click="play('{{ $issue['id'] }}')" wire:loading.attr="disabled" wire:target="play('{{ $issue['id'] }}')"
-                                        aria-label="Play issue #{{ $issue['number'] }}" title="Play"
-                                        class="icon-btn bg-chip text-mint"><x-icon name="play" class="size-3.5" /></button>
+                                <button wire:click="play('{{ $issue['id'] }}', ! $event.altKey)" wire:loading.attr="disabled"
+                                        wire:target="play('{{ $issue['id'] }}', true), play('{{ $issue['id'] }}', false)"
+                                        aria-label="Play issue #{{ $issue['number'] }}"
+                                        title="Play — assigns it to you and moves it to {{ config('orchestrator.board.started') }}. ⌥-click to play without claiming."
+                                        class="icon-btn group-hover/row:text-mint hover:text-mint focus-visible:text-mint"><x-icon name="play" class="size-3.5" /></button>
                             @endunless
 
-                            <span wire:loading wire:target="play('{{ $issue['id'] }}')" role="status" aria-label="Starting a workspace"
+                            <span wire:loading wire:target="play('{{ $issue['id'] }}', true), play('{{ $issue['id'] }}', false)" role="status" aria-label="Starting a workspace"
                                   class="size-3 animate-spin rounded-full border border-line border-t-mint"></span>
                         </div>
 

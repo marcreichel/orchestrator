@@ -21,6 +21,16 @@ it('lists pull requests waiting on my review with their CI state', function () {
         ->assertSeeHtml('bg-rose');
 });
 
+// Only a working agent breathes — a lane of pulsing CI dots would drown it out.
+it('shows a pending check as a steady dot', function () {
+    fakeGitHub(pullRequests: [pullRequestItem(7)], checks: ['PR_7' => 'PENDING']);
+
+    loaded('prs')
+        ->assertSee('pending')
+        ->assertSeeHtml('bg-amber')
+        ->assertDontSeeHtml('animate-pulse');
+});
+
 it('starts a review workspace for the pull request', function () {
     fakeGitHub(pullRequests: [pullRequestItem(7)]);
 

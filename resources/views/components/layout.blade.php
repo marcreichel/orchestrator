@@ -14,7 +14,7 @@
     </head>
     <body class="mx-auto max-w-4xl bg-ink px-6 pb-10 text-[15px]/normal text-paper lg:max-w-[100rem]">
         {{-- Pinned and translucent, so the lanes scroll under it. Fixed h-15: the lane and list
-             headings pin themselves right below it (top-15, top-25). --}}
+             headings pin themselves right below it (3.75rem, see --lane-top). --}}
         <header class="material sticky top-0 z-10 -mx-6 mb-6 flex h-15 items-center gap-2 px-6">
             <h1 class="flex-1 text-lg font-semibold tracking-[-.015em]">
                 <a href="{{ route('home') }}" class="inline-flex items-center gap-2.5">

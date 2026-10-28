@@ -58,6 +58,8 @@ new #[Isolate] class extends Component
             $this->error = $exception->getMessage();
             $this->pullRequests = [];
         }
+
+        $this->dispatch('refreshed');
     }
 
     public function review(int $number): void
@@ -93,7 +95,7 @@ new #[Isolate] class extends Component
                 {{-- Titles often lead with the issue they close ("#123 fix: …"). Next to the PR's
                      own number that reads as two ids, so the issue moves to the meta line. --}}
                 @php(preg_match('/^#(\d+)\s+(.+)$/s', $pullRequest['title'], $leading))
-                <li wire:key="{{ $pullRequest['number'] }}" class="row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
+                <li wire:key="{{ $pullRequest['number'] }}" class="row group/row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
                     <span class="text-right font-mono text-xs text-muted tabular-nums">#{{ $pullRequest['number'] }}</span>
 
                     <div class="min-w-0">
@@ -128,11 +130,12 @@ new #[Isolate] class extends Component
                     </div>
 
                     <div class="-mt-[3px] flex items-center gap-1.5 self-start">
-                        {{-- aria-label, not just title: a bare ▶ has no reliable accessible name. --}}
+                        {{-- aria-label, not just title: a bare icon has no reliable accessible name.
+                             An eye, not ▶ — reviewing is a different job from playing an issue. --}}
                         @unless (isset($reviewed['status']))
                             <button wire:click="review({{ $pullRequest['number'] }})" wire:loading.attr="disabled" wire:target="review({{ $pullRequest['number'] }})" title="Review"
                                     aria-label="Review pull request #{{ $pullRequest['number'] }}"
-                                    class="icon-btn bg-chip text-mint"><x-icon name="play" class="size-3.5" /></button>
+                                    class="icon-btn group-hover/row:text-mint hover:text-mint focus-visible:text-mint"><x-icon name="review" /></button>
                         @endunless
 
                         <span wire:loading wire:target="review({{ $pullRequest['number'] }})" role="status" aria-label="Starting a workspace"
