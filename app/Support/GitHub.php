@@ -375,7 +375,8 @@ class GitHub
     }
 
     /**
-     * Scope an issue search to the mapped repos, minus what's never actionable.
+     * Scope an issue search to the mapped repos, minus what's never actionable —
+     * including issues with an open "Blocked by" dependency (`is:blocked`).
      *
      * @param  array<int, string>  $repoNames
      */
@@ -383,7 +384,7 @@ class GitHub
     {
         $excluded = implode(' ', array_map(fn (string $label): string => "-label:{$label}", self::EXCLUDED_LABELS));
 
-        return trim(self::scope($repoNames)." {$excluded} -type:Epic {$query}");
+        return trim(self::scope($repoNames)." {$excluded} -is:blocked -type:Epic {$query}");
     }
 
     /**
