@@ -116,13 +116,14 @@ class Workspaces
         }
 
         self::orca(['terminal', 'switch', '--terminal', $terminals[0]['handle']]);
+        self::focusOrca();
     }
 
     /** Opens the workspace's changed files as diff tabs and brings Orca to them. */
     public static function showChanges(string $id): void
     {
         self::orca(['file', 'open-changed', '--mode', 'diff', '--focus', '--worktree', "id:{$id}"]);
-        Cache::forget('orchestrator.workspaces.all');
+        self::focusOrca();
     }
 
     /** Removes the worktree from Orca and git; the branch stays. */
@@ -130,6 +131,15 @@ class Workspaces
     {
         self::orca(['worktree', 'rm', '--worktree', "id:{$id}"], 120);
         Cache::forget('orchestrator.workspaces.all');
+    }
+
+    /**
+     * The CLI switches tabs but never raises the window, so the app itself is activated.
+     * macOS only; a failure here must not undo the switch that already happened.
+     */
+    private static function focusOrca(): void
+    {
+        Process::run(['open', '-a', 'Orca']);
     }
 
     /**

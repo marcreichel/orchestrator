@@ -103,6 +103,7 @@ it('brings the first terminal of a workspace to the front', function () {
     loaded('workspaces')->call('open', 'repo-1::/orca/feature-1')->assertSet('error', null);
 
     Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'terminal switch --terminal term_1'));
+    Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'open -a Orca'));
 });
 
 it('says so when a workspace has no live terminal to open', function () {
@@ -117,6 +118,7 @@ it('opens the changed files of a workspace as diffs', function () {
     loaded('workspaces')->call('showChanges', 'repo-1::/orca/feature-1');
 
     Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'open-changed --mode diff --focus --worktree id:repo-1::/orca/feature-1'));
+    Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'open -a Orca'));
 });
 
 it('removes a workspace and drops its row', function () {

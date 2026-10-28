@@ -223,6 +223,7 @@ function fakeOrca(array $worktrees = [], array $repos = [], ?array $created = nu
         "*'worktree' 'ps'*" => $ok(['worktrees' => $worktrees]),
         "*'terminal' 'list'*" => $ok(['terminals' => $terminals]),
         "*'terminal' 'switch'*" => $ok([]),
+        "*'open' '-a' 'Orca'*" => Process::result(),
         "*'file' 'open-changed'*" => $ok([]),
         "*'worktree' 'rm'*" => $ok([]),
         "*'worktree' 'create'*" => $ok(['worktree' => $created ?? worktree()]),
