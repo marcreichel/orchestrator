@@ -209,7 +209,7 @@ new #[Isolate] class extends Component
         ]) as [$title, $issues, $key, $empty])
             {{-- Only my own issues start open; the extra lists fold away so they're reachable
                  without scrolling past all of them. --}}
-            <x-section :title="$title" :count="count($issues)" :truncated="$truncated[$key] ?? false" :empty="$error ?? $empty"
+            <x-section :title="$title" :count="count($issues)" :truncated="$truncated[$key] ?? false" :error="$error" :empty="$empty"
                        :collapsible="$key !== 'assigned'">
                 @foreach ($issues as $issue)
                     @php($played = $played[$issue['id']] ?? [])

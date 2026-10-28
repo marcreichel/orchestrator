@@ -1,5 +1,5 @@
 {{-- One list inside a lane. Untitled when it's the lane's only list. --}}
-@props(['title' => null, 'count' => null, 'empty' => null, 'truncated' => false, 'collapsible' => false])
+@props(['title' => null, 'count' => null, 'empty' => null, 'error' => null, 'truncated' => false, 'collapsible' => false])
 
 {{-- Folds through a native <details>. wire:ignore.self, or every poll would re-render it
      without `open` and snap a list the user opened shut again. --}}
@@ -25,9 +25,10 @@
 
     <ul class="divide-y divide-line">
         {{-- Counted from the data, not from the slot: Livewire's conditional markers make
-             an "empty" slot non-empty. A cold cache passes 'Loading…' as the empty text — it
-             gets placeholder rows instead, so it doesn't read as an empty list. --}}
-        @if (! $count && $empty === 'Loading…')
+             an "empty" slot non-empty. A cold cache passes 'Loading…' as the error — it gets
+             placeholder rows instead, so it doesn't read as an empty list. An error behind a
+             list that still has rows is left unsaid: the last known rows are worth more. --}}
+        @if (! $count && $error === 'Loading…')
             @foreach (['w-3/4', 'w-1/2', 'w-2/3'] as $width)
                 <li aria-hidden="true" class="flex gap-3 py-3.5">
                     <span class="h-3 w-10 rounded bg-chip"></span>
@@ -35,8 +36,18 @@
                 </li>
             @endforeach
             <li class="sr-only">Loading…</li>
+        @elseif (! $count && $error)
+            <li class="flex items-start gap-2 py-3 text-sm text-muted">
+                <x-icon name="alert" class="mt-0.5 size-4 shrink-0 text-rose" />
+                <span class="[overflow-wrap:anywhere]">{{ $error }}</span>
+            </li>
         @elseif (! $count)
-            <li class="py-3 text-sm text-muted">{{ $empty ?? 'Nothing here.' }}</li>
+            <li class="flex flex-col items-center gap-3 py-8 text-center text-sm text-muted">
+                <span class="grid size-9 place-items-center rounded-lg border border-line bg-chip">
+                    <x-icon name="inbox" />
+                </span>
+                <span class="max-w-64 text-balance">{{ $empty ?? 'Nothing here.' }}</span>
+            </li>
         @else
             {{ $slot }}
         @endif

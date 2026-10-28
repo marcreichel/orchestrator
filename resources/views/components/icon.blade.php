@@ -30,5 +30,13 @@
         @case('refresh')
             <path d="M13 8a5 5 0 1 1-1.46-3.54M13 2.5V5h-2.5"/>
             @break
+        @case('inbox')
+            <path d="M3.5 3.5h9l2 6v2.5a1.5 1.5 0 0 1-1.5 1.5H3a1.5 1.5 0 0 1-1.5-1.5V9.5z"/>
+            <path d="M1.5 9.5H5l1 1.5h4l1-1.5h3.5"/>
+            @break
+        @case('alert')
+            <circle cx="8" cy="8" r="6.5"/>
+            <path d="M8 5v3.5M8 11h.01"/>
+            @break
     @endswitch
 </svg>

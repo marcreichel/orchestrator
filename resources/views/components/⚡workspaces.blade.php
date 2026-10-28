@@ -117,7 +117,7 @@ new #[Isolate] class extends Component
     <span wire:key="title-{{ $working }}" x-data x-init="document.title = @js(config('app.name').($working ? " · {$working} working" : ''))"></span>
 
     <x-lane title="Workspaces" :count="count($workspaces)" spinner>
-        <x-section :count="count($workspaces)" :empty="$error ?? 'No workspaces running. Play an issue to start one.'">
+        <x-section :count="count($workspaces)" :error="$error" empty="No workspaces running. Play an issue to start one.">
             @foreach ($workspaces as $workspace)
                 {{-- Keyed on the workspace, not on its position: prepend() puts a freshly played
                      one on the front, which shifts every index below it and makes Livewire

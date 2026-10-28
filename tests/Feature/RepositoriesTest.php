@@ -17,5 +17,6 @@ it('shows the failure instead of an error page when Orca is down', function () {
 
     $this->get('/repositories')
         ->assertOk()
-        ->assertSee('no token');
+        ->assertSee('no token')
+        ->assertDontSee('Orca has no repositories yet.');
 });

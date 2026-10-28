@@ -89,7 +89,7 @@ new #[Isolate] class extends Component
 {{-- 300s, not 5m — see the issues component. --}}
 <div wire:init="load" wire:poll.300s="load">
     <x-lane title="Review requested" :count="count($pullRequests)" :truncated="$truncated" spinner>
-        <x-section :count="count($pullRequests)" :empty="$error ?? 'No reviews waiting for you.'">
+        <x-section :count="count($pullRequests)" :error="$error" empty="No reviews waiting for you.">
             @foreach ($pullRequests as $pullRequest)
                 @php($reviewed = $reviewed[$pullRequest['number']] ?? [])
                 {{-- Titles often lead with the issue they close ("#123 fix: …"). Next to the PR's
