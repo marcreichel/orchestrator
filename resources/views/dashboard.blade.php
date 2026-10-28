@@ -23,7 +23,7 @@
             <span x-text="label" aria-live="polite" class="text-xs text-muted tabular-nums">Updating…</span>
 
             <button type="button" x-on:click.throttle.10000ms="at = null; Livewire.dispatch('reload')"
-                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-chip px-2.5 py-1 text-sm transition-[background-color,scale] duration-100 hover:bg-chip-hover active:scale-96">
+                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-sm text-paper/80 transition-[background-color,color,scale] duration-100 hover:bg-chip-hover hover:text-paper active:scale-96">
                 <x-icon name="refresh" class="size-3.5 text-muted" />Refresh
             </button>
         </span>
@@ -35,9 +35,9 @@
          track: a branch and four buttons need less than a title does.
          Side by side, each lane scrolls on its own (7.75rem is the page header, its margin and
          the body's bottom padding), so the long issue list doesn't drag the other two along.
-         --lane-top re-pins the lane headings to the top of their own scroller, and the px-2
-         gutter keeps the row hover tint from tripping a sideways scroll. --}}
-    <div class="grid items-start gap-x-10 gap-y-8 lg:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)] xl:*:-mx-2 xl:*:max-h-[calc(100dvh-7.75rem)] xl:*:overflow-x-hidden xl:*:overflow-y-auto xl:*:overscroll-contain xl:*:px-2 xl:*:[--lane-top:0px]">
+         --lane-top re-pins the lane headings to the top of their own scroller. Each lane is a
+         panel, whose padding keeps the row hover tint from tripping a sideways scroll. --}}
+    <div class="grid items-start gap-4 *:panel *:pb-2 lg:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)] xl:*:max-h-[calc(100dvh-7.75rem)] xl:*:overflow-x-hidden xl:*:overflow-y-auto xl:*:overscroll-contain xl:*:[--lane-top:0px]">
         {{-- Not deferred: mounting only reads the cache, so the last known lists render
              with the page. Each still fetches in its own `wire:init` request, so a dead
              GitHub or Orca only takes out its own list. --}}

@@ -3,20 +3,22 @@
 @source '../views';
 
 @theme {
-    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
-    --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-    /* Blue-graphite neutrals; mint, amber and rose are the only signal colours. */
-    --color-ink: #0c1016;
-    --color-paper: #e2e7ee;
-    --color-muted: #7c8798;
-    --color-line: #1e2530;
-    --color-chip: #19202a;
-    --color-chip-hover: #252e3b;
+    /* Untinted neutrals after onorca.dev; mint, amber and rose are the only signal colours.
+       Lines are translucent white, so they read the same on ink and on surface. */
+    --color-ink: #08090a;
+    --color-surface: #0e0f11;
+    --color-paper: #f7f8f8;
+    --color-muted: #8a8f98;
+    --color-line: rgb(255 255 255 / 0.08);
+    --color-chip: #1a1b1e;
+    --color-chip-hover: #222326;
     --color-mint: #6ee7a8;
     --color-amber: #fbbf24;
     --color-rose: #f87171;
-    --color-idle: #3a4352;
+    --color-idle: #3a3c40;
 }
 
 /* One-user local dashboard — dark only, no light variant to keep in sync. */
@@ -61,11 +63,11 @@
 
 /* Chrome that content scrolls under; solid when the system asks for less transparency. */
 @utility material {
-    background: color-mix(in oklab, var(--color-ink) 72%, transparent);
+    background: color-mix(in oklab, var(--color-surface) 80%, transparent);
     backdrop-filter: blur(20px) saturate(160%);
 
     @media (prefers-reduced-transparency: reduce) {
-        background: var(--color-ink);
+        background: var(--color-surface);
         backdrop-filter: none;
     }
 }
@@ -116,9 +118,18 @@
     }
 }
 
-/* A GitHub label in its own colour, lifted toward the text colour so a near-black one
-   still shows up on the dark lanes. Set --label to the label's hex. */
-@utility label-chip {
-    background: color-mix(in oklab, color-mix(in oklab, var(--label) 65%, var(--color-paper)) 16%, transparent);
-    border: 1px solid color-mix(in oklab, var(--label) 60%, var(--color-paper));
+/* A bordered pane, like the ones in Orca's app. Clipped, not hidden: overflow-clip keeps
+   the rounded corners without becoming a scroller, so the lane headings still pin. */
+@utility panel {
+    overflow: clip;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    background: var(--color-surface);
+    padding-inline: 1rem;
+}
+
+/* A GitHub label's colour, as a dot on a neutral chip. Lifted toward the text colour so a
+   near-black one still shows up on the dark lanes. Set --label to the label's hex. */
+@utility label-dot {
+    background: color-mix(in oklab, var(--label) 75%, var(--color-paper));
 }

@@ -3,10 +3,11 @@
 
 <section {{ $attributes }}>
     {{-- Sticky under the page header (3.75rem is its height), so a long lane keeps its name —
-         or at the top of its own scroller, where the dashboard sets --lane-top. Fixed h-10:
-         the list headings below pin themselves at the sum of the two. --}}
-    <header class="material sticky top-[var(--lane-top,3.75rem)] z-[5] flex h-10 items-center gap-2 border-t-2 border-line">
-        <h2 class="text-[15px] font-semibold tracking-[-.01em]">{{ $title }}</h2>
+         or at the top of its own scroller, where the dashboard sets --lane-top. Fixed h-10,
+         its hairline included: the list headings below pin themselves at the sum of the two.
+         -mx-4 px-4 bleeds it to the edges of the panel it sits in. --}}
+    <header class="material sticky top-[var(--lane-top,3.75rem)] z-[5] -mx-4 flex h-10 items-center gap-2 border-b border-line px-4">
+        <h2 class="text-[15px] font-medium tracking-[-.01em]">{{ $title }}</h2>
 
         {{-- A search only ever asks for its first page, so a capped list gets a `+` and says
              so on hover rather than reading as the whole picture. --}}

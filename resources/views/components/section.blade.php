@@ -5,9 +5,10 @@
      without `open` and snap a list the user opened shut again. --}}
 <{{ $collapsible ? 'details' : 'div' }} @if ($collapsible) wire:ignore.self class="group" @endif>
     @if ($title)
-        {{-- Sticky under the lane heading, which is 2.5rem tall and pinned at --lane-top. --}}
+        {{-- Sticky under the lane heading, which is 2.5rem tall and pinned at --lane-top.
+             Bled to the panel's edges, so rows don't show through beside it. --}}
         <{{ $collapsible ? 'summary' : 'h3' }} @class([
-            'material sticky top-[calc(var(--lane-top,3.75rem)+2.5rem)] z-[4] mt-4 flex items-center gap-1.5 py-1.5 text-[11px] font-medium tracking-[.08em] text-muted uppercase',
+            'material sticky top-[calc(var(--lane-top,3.75rem)+2.5rem)] z-[4] -mx-4 mt-4 flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium tracking-[.08em] text-muted uppercase',
             'cursor-pointer list-none hover:text-paper [&::-webkit-details-marker]:hidden' => $collapsible,
         ])>
             @if ($collapsible)

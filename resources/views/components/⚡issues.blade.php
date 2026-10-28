@@ -222,12 +222,13 @@ new #[Isolate] class extends Component
 
                             @if ($issue['labels'] || $played)
                                 <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                                    {{-- GitHub label colours can be near-black, so tint the chip instead of
-                                         colouring the text — readable whatever colour the label happens to be.
+                                    {{-- Neutral chips with the label's colour as a dot, so the labels stay
+                                         quieter than the titles whatever colour they happen to be.
                                          Fixed height: an emoji in the name would otherwise make its chip taller. --}}
                                     @foreach (array_slice($issue['labels'], 0, 3) as $label)
-                                        <span class="label-chip inline-flex h-[18px] items-center rounded-full px-1.5 text-[11px] whitespace-nowrap"
-                                              style="--label:#{{ $label['color'] }}">{{ $label['name'] }}</span>
+                                        <span class="inline-flex h-[18px] items-center gap-1 rounded-full bg-white/8 px-1.5 text-[11px] whitespace-nowrap text-muted">
+                                            <span class="label-dot size-1.5 shrink-0 rounded-full" style="--label:#{{ $label['color'] }}"></span>{{ $label['name'] }}
+                                        </span>
                                     @endforeach
 
                                     @if (count($issue['labels']) > 3)
