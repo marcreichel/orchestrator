@@ -20,11 +20,12 @@
               x-init="setInterval(() => now = Date.now(), 15000)"
               x-on:refreshed.window="at = now = Date.now()"
               class="contents">
-            <span x-text="label" aria-live="polite" class="text-xs text-muted tabular-nums">Updating…</span>
+            {{-- No room for it on a phone; the Refresh button's tooltip carries it there. --}}
+            <span x-text="label" aria-live="polite" class="hidden text-xs text-muted tabular-nums sm:inline">Updating…</span>
 
-            <button type="button" x-on:click.throttle.10000ms="at = null; Livewire.dispatch('reload')"
+            <button type="button" x-bind:title="label" x-on:click.throttle.10000ms="at = null; Livewire.dispatch('reload')"
                     class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-sm text-paper/80 transition-[background-color,color,scale] duration-100 hover:bg-chip-hover hover:text-paper active:scale-96">
-                <x-icon name="refresh" class="size-3.5 text-muted" />Refresh
+                <x-icon name="refresh" class="size-3.5 text-muted" /><span class="sr-only sm:not-sr-only">Refresh</span>
             </button>
         </span>
     </x-slot:actions>
@@ -38,7 +39,7 @@
          long issue list doesn't drag the other two along.
          --lane-top re-pins the lane headings to the top of their own scroller. Each lane is a
          panel, whose padding keeps the row hover tint from tripping a sideways scroll. --}}
-    <div class="grid items-start gap-4 *:panel *:pb-2 lg:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)] xl:*:h-[calc(100dvh-7.75rem)] xl:*:overflow-x-hidden xl:*:overflow-y-auto xl:*:overscroll-contain xl:*:[--lane-top:0px]">
+    <div class="grid items-start gap-4 *:panel *:pb-2 lg:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)] xl:*:h-[calc(100dvh-7.75rem)] xl:*:overflow-x-hidden xl:*:overflow-y-auto xl:*:overscroll-contain xl:*:scroll-fade xl:*:[--lane-top:0px]">
         {{-- Not deferred: mounting only reads the cache, so the last known lists render
              with the page. Each still fetches in its own `wire:init` request, so a dead
              GitHub or Orca only takes out its own list. --}}

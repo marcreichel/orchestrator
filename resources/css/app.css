@@ -131,6 +131,40 @@
     scrollbar-width: thin;
 }
 
+/* A fade along the bottom of a scrolling lane, so a row cut by the panel's edge reads as
+   "more below". Hidden by default and shown by a scroll-driven animation, which only runs
+   while the lane actually overflows, and fades it out over the last 3rem of the scroll.
+   Where scroll timelines are unsupported there's simply no fade. */
+@utility scroll-fade {
+    &::after {
+        content: '';
+        /* Sticky insets count from inside the scroller's padding, so reach past the
+           panel's pb-2 to sit on its edge. */
+        position: sticky;
+        bottom: -0.5rem;
+        z-index: 5;
+        display: block;
+        height: 2rem;
+        margin-top: -2rem;
+        pointer-events: none;
+        background: linear-gradient(transparent, var(--color-surface));
+        opacity: 0;
+        animation: scroll-fade-out linear both;
+        animation-timeline: scroll(nearest);
+        animation-range: calc(100% - 3rem) 100%;
+    }
+}
+
+@keyframes scroll-fade-out {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
 /* A GitHub label's colour, as a dot on a neutral chip. Lifted toward the text colour so a
    near-black one still shows up on the dark lanes. Set --label to the label's hex. */
 @utility label-dot {

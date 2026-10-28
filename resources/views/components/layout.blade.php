@@ -20,7 +20,7 @@
              included: the lane and list headings pin themselves right below it (3.75rem, see
              --lane-top). Full width; only its contents keep to the page column. --}}
         <header class="material sticky top-0 z-10 h-15 border-b border-line">
-            <div class="mx-auto flex h-full max-w-4xl items-center gap-2 px-6 lg:max-w-[100rem]">
+            <div class="mx-auto flex h-full max-w-4xl items-center gap-2 px-4 sm:px-6 lg:max-w-[100rem]">
                 <h1 class="flex-1 text-lg font-medium tracking-[-.02em]">
                     <a href="{{ route('home') }}" class="inline-flex items-center gap-2.5">
                         <svg width="26" height="26" viewBox="0 0 20 20" fill="none" stroke="currentColor"
@@ -41,7 +41,7 @@
             </div>
         </header>
 
-        <main class="mx-auto mt-6 max-w-4xl px-6 pb-10 lg:max-w-[100rem]">
+        <main class="mx-auto mt-6 max-w-4xl px-4 pb-10 sm:px-6 lg:max-w-[100rem]">
             {{ $slot }}
         </main>
     </body>

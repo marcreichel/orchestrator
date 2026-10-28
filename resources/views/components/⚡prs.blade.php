@@ -99,9 +99,9 @@ new #[Isolate] class extends Component
                     <span class="text-right font-mono text-xs text-muted tabular-nums">#{{ $pullRequest['number'] }}</span>
 
                     <div class="min-w-0">
-                        {{-- Two lines at most, full text on hover — one line cut most titles in half. --}}
+                        {{-- Three lines at most, full text on hover — fewer cut long scoped titles mid-word. --}}
                         <a href="{{ $pullRequest['url'] }}" target="_blank" title="{{ $pullRequest['title'] }}"
-                           class="line-clamp-2 [overflow-wrap:anywhere] hover:underline">{{ $leading[2] ?? $pullRequest['title'] }}</a>
+                           class="line-clamp-3 [overflow-wrap:anywhere] hover:underline">{{ $leading[2] ?? $pullRequest['title'] }}</a>
 
                         <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                             <span>{{ '@'.$pullRequest['author'] }}</span>
