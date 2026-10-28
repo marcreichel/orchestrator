@@ -86,43 +86,60 @@ new #[Isolate] class extends Component
 
 {{-- 300s, not 5m — see the issues component. --}}
 <div wire:init="load" wire:poll.300s="load">
-    <x-section title="Review requested" :count="count($pullRequests)" :truncated="$truncated" :empty="$error" spinner>
-        @foreach ($pullRequests as $pullRequest)
-            @php($reviewed = $reviewed[$pullRequest['number']] ?? [])
-            <li wire:key="{{ $pullRequest['number'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
-                <span class="text-muted tabular-nums">#{{ $pullRequest['number'] }}</span>
+    <x-lane title="Review requested" :count="count($pullRequests)" :truncated="$truncated" spinner>
+        <x-section :count="count($pullRequests)" :empty="$error ?? 'No reviews waiting for you.'">
+            @foreach ($pullRequests as $pullRequest)
+                @php($reviewed = $reviewed[$pullRequest['number']] ?? [])
+                {{-- Titles often lead with the issue they close ("#123 fix: …"). Next to the PR's
+                     own number that reads as two ids, so the issue moves to the meta line. --}}
+                @php(preg_match('/^#(\d+)\s+(.+)$/s', $pullRequest['title'], $leading))
+                <li wire:key="{{ $pullRequest['number'] }}" class="row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
+                    <span class="text-right font-mono text-xs text-muted tabular-nums">#{{ $pullRequest['number'] }}</span>
 
-                {{-- Titles are long and the author/check chips matter more — one line, ellipsis, full text on hover. --}}
-                <a href="{{ $pullRequest['url'] }}" target="_blank" title="{{ $pullRequest['title'] }}"
-                   class="min-w-0 flex-1 truncate hover:underline">{{ $pullRequest['title'] }}</a>
+                    <div class="min-w-0">
+                        {{-- Two lines at most, full text on hover — one line cut most titles in half. --}}
+                        <a href="{{ $pullRequest['url'] }}" target="_blank" title="{{ $pullRequest['title'] }}"
+                           class="line-clamp-2 [overflow-wrap:anywhere] hover:underline">{{ $leading[2] ?? $pullRequest['title'] }}</a>
 
-                <span class="text-sm text-muted">{{ '@'.$pullRequest['author'] }}</span>
+                        <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                            <span>{{ '@'.$pullRequest['author'] }}</span>
 
-                @if ($pullRequest['check'])
-                    {{-- Dot centres on its own label, not on the row — rows grow when titles wrap. --}}
-                    <span class="inline-flex items-center gap-1.5 text-sm text-muted">
-                        <x-dot :state="$pullRequest['check']" />{{ $pullRequest['check'] }}
-                    </span>
-                @endif
+                            @if ($leading)
+                                {{-- issues/N redirects to the pull request when N turns out to be one. --}}
+                                <a href="https://github.com/{{ $pullRequest['repo'] }}/issues/{{ $leading[1] }}" target="_blank"
+                                   class="hover:text-paper hover:underline">for #{{ $leading[1] }}</a>
+                            @endif
 
-                {{-- aria-label, not just title: a bare ▶ has no reliable accessible name. --}}
-                @unless (isset($reviewed['status']))
-                    <button wire:click="review({{ $pullRequest['number'] }})" wire:loading.attr="disabled" title="Review"
-                            aria-label="Review pull request #{{ $pullRequest['number'] }}"
-                            class="cursor-pointer rounded-md bg-chip px-2.5 py-0.5 hover:bg-chip-hover">▶</button>
-                @endunless
+                            @if ($pullRequest['check'])
+                                {{-- Dot centres on its own label, not on the row — rows grow when titles wrap. --}}
+                                <span class="inline-flex items-center gap-1.5">
+                                    <x-dot :state="$pullRequest['check']" />{{ $pullRequest['check'] }}
+                                </span>
+                            @endif
 
-                <span wire:loading wire:target="review({{ $pullRequest['number'] }})" role="status"
-                      aria-label="Starting a workspace" class="text-sm text-mint">…</span>
+                            @isset($reviewed['status'])
+                                <span class="font-mono text-mint">{{ $reviewed['status'] }}</span>
+                            @endisset
 
-                @isset($reviewed['status'])
-                    <span class="text-sm text-mint">{{ $reviewed['status'] }}</span>
-                @endisset
+                            @if ($reviewed['error'] ?? null)
+                                <span role="alert" class="text-rose">✗ {{ $reviewed['error'] }}</span>
+                            @endif
+                        </div>
+                    </div>
 
-                @if ($reviewed['error'] ?? null)
-                    <span role="alert" class="text-sm text-rose">✗ {{ $reviewed['error'] }}</span>
-                @endif
-            </li>
-        @endforeach
-    </x-section>
+                    <div class="-mt-[3px] flex items-center gap-1.5 self-start">
+                        {{-- aria-label, not just title: a bare ▶ has no reliable accessible name. --}}
+                        @unless (isset($reviewed['status']))
+                            <button wire:click="review({{ $pullRequest['number'] }})" wire:loading.attr="disabled" wire:target="review({{ $pullRequest['number'] }})" title="Review"
+                                    aria-label="Review pull request #{{ $pullRequest['number'] }}"
+                                    class="icon-btn bg-chip text-mint"><x-icon name="play" class="size-3.5" /></button>
+                        @endunless
+
+                        <span wire:loading wire:target="review({{ $pullRequest['number'] }})" role="status" aria-label="Starting a workspace"
+                              class="size-3 animate-spin rounded-full border border-line border-t-mint"></span>
+                    </div>
+                </li>
+            @endforeach
+        </x-section>
+    </x-lane>
 </div>

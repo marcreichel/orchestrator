@@ -76,3 +76,14 @@ it('looks the check states up in chunks of a hundred pull requests', function ()
     expect(Http::recorded(fn (Request $request): bool => str_contains(graphqlDocument($request), 'statusCheckRollup')))
         ->toHaveCount(2);
 });
+
+// "#123 fix: …" next to the PR's own number reads as two ids, so the issue moves aside.
+it('moves the issue a title leads with to the meta line', function () {
+    fakeGitHub(pullRequests: [[...pullRequestItem(7), 'title' => '#31387 fix(contracts): Resolve ICT']]);
+
+    loaded('prs')
+        ->assertSee('fix(contracts): Resolve ICT')
+        ->assertDontSeeHtml('>#31387 fix')
+        ->assertSeeHtml('href="https://github.com/a/b/issues/31387"')
+        ->assertSee('for #31387');
+});

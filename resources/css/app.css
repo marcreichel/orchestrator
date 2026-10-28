@@ -4,20 +4,121 @@
 
 @theme {
     --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
-    --color-ink: #101014;
-    --color-paper: #e6e6ea;
-    --color-muted: #8b8b96;
-    --color-line: #23232b;
-    --color-chip: #26262e;
-    --color-chip-hover: #34343e;
+    /* Blue-graphite neutrals; mint, amber and rose are the only signal colours. */
+    --color-ink: #0c1016;
+    --color-paper: #e2e7ee;
+    --color-muted: #7c8798;
+    --color-line: #1e2530;
+    --color-chip: #19202a;
+    --color-chip-hover: #252e3b;
     --color-mint: #6ee7a8;
     --color-amber: #fbbf24;
     --color-rose: #f87171;
-    --color-idle: #4b4b56;
+    --color-idle: #3a4352;
 }
 
 /* One-user local dashboard — dark only, no light variant to keep in sync. */
 :root {
     color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Keyboard focus only, so a click never leaves a ring behind. */
+:focus-visible {
+    outline: 2px solid var(--color-mint);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+/* Square icon button; the press shows on pointer-down, not on release. */
+@utility icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-shrink: 0;
+    border-radius: 0.375rem;
+    color: var(--color-muted);
+    cursor: pointer;
+    transition: background-color 120ms, color 120ms, scale 100ms ease-out;
+
+    &:hover {
+        background: var(--color-chip-hover);
+        color: var(--color-paper);
+    }
+
+    &:active {
+        scale: 0.94;
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: default;
+    }
+}
+
+/* Chrome that content scrolls under; solid when the system asks for less transparency. */
+@utility material {
+    background: color-mix(in oklab, var(--color-ink) 72%, transparent);
+    backdrop-filter: blur(20px) saturate(160%);
+
+    @media (prefers-reduced-transparency: reduce) {
+        background: var(--color-ink);
+        backdrop-filter: none;
+    }
+}
+
+/* List rows fade up as Livewire inserts them, and collapse out once marked `.leaving`.
+   height animates only where interpolate-size exists; elsewhere the row just fades. */
+@utility row {
+    position: relative;
+    isolation: isolate;
+    interpolate-size: allow-keywords;
+    transition: opacity 250ms ease-out, translate 350ms cubic-bezier(0.2, 0.8, 0.2, 1), height 250ms ease-in, padding-block 250ms ease-in;
+
+    @starting-style {
+        opacity: 0;
+        translate: 0 4px;
+    }
+
+    /* Hover tint reaches past the text, so the row's ▶ reads as part of it, without
+       moving the row or its divider out of line with the lane heading. */
+    @media (hover: hover) {
+        &:hover::before {
+            content: '';
+            position: absolute;
+            inset: 0 -0.5rem;
+            z-index: -1;
+            border-radius: 0.375rem;
+            background: color-mix(in oklab, var(--color-chip) 70%, transparent);
+        }
+    }
+
+    &.leaving {
+        overflow: hidden;
+        height: 0;
+        padding-block: 0;
+        opacity: 0;
+        translate: 12px 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: opacity 200ms;
+        translate: none !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .icon-btn:active {
+        scale: none;
+    }
+}
+
+/* A GitHub label in its own colour, lifted toward the text colour so a near-black one
+   still shows up on the dark lanes. Set --label to the label's hex. */
+@utility label-chip {
+    background: color-mix(in oklab, color-mix(in oklab, var(--label) 65%, var(--color-paper)) 16%, transparent);
+    border: 1px solid color-mix(in oklab, var(--label) 60%, var(--color-paper));
 }

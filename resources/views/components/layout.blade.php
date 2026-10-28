@@ -12,9 +12,11 @@
 
         @vite('resources/css/app.css')
     </head>
-    <body class="mx-auto max-w-4xl bg-ink px-6 py-10 text-[15px]/normal text-paper lg:max-w-[100rem]">
-        <header class="mb-8 flex items-baseline gap-4">
-            <h1 class="flex-1 text-xl">
+    <body class="mx-auto max-w-4xl bg-ink px-6 pb-10 text-[15px]/normal text-paper lg:max-w-[100rem]">
+        {{-- Pinned and translucent, so the lanes scroll under it. Fixed h-15: the lane and list
+             headings pin themselves right below it (top-15, top-25). --}}
+        <header class="material sticky top-0 z-10 -mx-6 mb-6 flex h-15 items-center gap-2 px-6">
+            <h1 class="flex-1 text-lg font-semibold tracking-[-.015em]">
                 <a href="{{ route('home') }}" class="inline-flex items-center gap-2.5">
                     <svg width="26" height="26" viewBox="0 0 20 20" fill="none" stroke="currentColor"
                          stroke-width="1.5" stroke-linecap="round" aria-hidden="true" class="text-mint">
@@ -26,7 +28,8 @@
                 </a>
             </h1>
 
-            <a href="{{ route('repositories') }}" class="rounded-md bg-chip px-2.5 py-1 hover:bg-chip-hover">Repositories</a>
+            <a href="{{ route('repositories') }}"
+               class="rounded-md px-2.5 py-1 text-sm text-muted transition-colors hover:bg-chip-hover hover:text-paper">Repositories</a>
 
             {{-- Page-specific buttons; a named slot that wasn't passed is undefined. --}}
             {{ $actions ?? '' }}

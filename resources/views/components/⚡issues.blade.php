@@ -200,64 +200,80 @@ new #[Isolate] class extends Component
 };
 ?>
 
-{{-- `contents` so both sections are grid items of the page, not of this component.
-     300s, not 5m: wire:poll only parses `ms` and `s`, so `.5m` silently polls every 2s. --}}
-<div class="contents" wire:init="load" wire:poll.300s="load">
-    {{-- array_filter, so a list whose query is unset renders no section at all. --}}
-    @foreach (array_filter([
-        ['Assigned to me', $assigned, 'assigned'],
-        config('orchestrator.other_issues') ? ['Other issues', $other, 'other'] : null,
-        config('orchestrator.unassigned_bugs') ? ['Unassigned bugs', $bugs, 'bugs'] : null,
-    ]) as [$title, $issues, $key])
-        <x-section :title="$title" :count="count($issues)" :truncated="$truncated[$key] ?? false" :empty="$error" spinner>
-            @foreach ($issues as $issue)
-                @php($played = $played[$issue['id']] ?? [])
-                <li wire:key="{{ $issue['id'] }}" class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-t border-line py-2">
-                    <span class="text-muted tabular-nums">#{{ $issue['number'] }}</span>
+{{-- 300s, not 5m: wire:poll only parses `ms` and `s`, so `.5m` silently polls every 2s. --}}
+<div wire:init="load" wire:poll.300s="load">
+    <x-lane title="Issues" :count="count($assigned) + count($other) + count($bugs)" :truncated="in_array(true, $truncated, true)" spinner>
+        {{-- array_filter, so a list whose query is unset renders no section at all. --}}
+        @foreach (array_filter([
+            ['Assigned to me', $assigned, 'assigned', 'Nothing is assigned to you.'],
+            config('orchestrator.other_issues') ? ['Other issues', $other, 'other', 'No other issues match.'] : null,
+            config('orchestrator.unassigned_bugs') ? ['Unassigned bugs', $bugs, 'bugs', 'No unassigned bugs.'] : null,
+        ]) as [$title, $issues, $key, $empty])
+            {{-- Only my own issues start open; the extra lists fold away so they're reachable
+                 without scrolling past all of them. --}}
+            <x-section :title="$title" :count="count($issues)" :truncated="$truncated[$key] ?? false" :empty="$error ?? $empty"
+                       :collapsible="$key !== 'assigned'">
+                @foreach ($issues as $issue)
+                    @php($played = $played[$issue['id']] ?? [])
+                    {{-- Fixed number column, so titles line up whatever the number's width. --}}
+                    <li wire:key="{{ $issue['id'] }}" class="row grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
+                        <span class="text-right font-mono text-xs text-muted tabular-nums">#{{ $issue['number'] }}</span>
 
-                    {{-- min-w-0 so long titles wrap instead of forcing the row wider than its column. --}}
-                    <a href="{{ $issue['url'] }}" target="_blank" class="min-w-0 flex-1 [overflow-wrap:anywhere] hover:underline">{{ $issue['title'] }}</a>
+                        <div class="min-w-0">
+                            <a href="{{ $issue['url'] }}" target="_blank" class="[overflow-wrap:anywhere] hover:underline">{{ $issue['title'] }}</a>
 
-                    {{-- GitHub label colours can be near-black, so tint the background instead of
-                         colouring the text — readable whatever colour the label happens to be. --}}
-                    @foreach (array_slice($issue['labels'], 0, 3) as $label)
-                        <span class="rounded-full border px-1.5 py-px text-xs whitespace-nowrap"
-                              style="background:#{{ $label['color'] }}33;border-color:#{{ $label['color'] }}88">{{ $label['name'] }}</span>
-                    @endforeach
+                            @if ($issue['labels'] || $played)
+                                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                    {{-- GitHub label colours can be near-black, so tint the chip instead of
+                                         colouring the text — readable whatever colour the label happens to be. --}}
+                                    @foreach (array_slice($issue['labels'], 0, 3) as $label)
+                                        <span class="label-chip rounded-full px-1.5 text-[11px]/4 whitespace-nowrap"
+                                              style="--label:#{{ $label['color'] }}">{{ $label['name'] }}</span>
+                                    @endforeach
 
-                    @if (count($issue['labels']) > 3)
-                        <span class="text-xs text-muted" title="{{ implode(', ', array_column(array_slice($issue['labels'], 3), 'name')) }}">
-                            +{{ count($issue['labels']) - 3 }}
-                        </span>
-                    @endif
+                                    @if (count($issue['labels']) > 3)
+                                        <span class="text-[11px] text-muted" title="{{ implode(', ', array_column(array_slice($issue['labels'], 3), 'name')) }}">
+                                            +{{ count($issue['labels']) - 3 }}
+                                        </span>
+                                    @endif
 
-                    {{-- aria-label on both: a bare ▶ and an unlabelled checkbox have no
-                         accessible name at all, and `title` is not a reliable one. --}}
-                    @unless (isset($played['status']))
-                        <input type="checkbox" wire:model="claim.{{ $issue['id'] }}" class="accent-mint"
-                               aria-label="Claim issue #{{ $issue['number'] }}"
-                               title="Assign to me and move to {{ config('orchestrator.board.started') }}">
-                        <button wire:click="play('{{ $issue['id'] }}')" wire:loading.attr="disabled"
-                                aria-label="Play issue #{{ $issue['number'] }}" title="Play"
-                                class="cursor-pointer rounded-md bg-chip px-2.5 py-0.5 hover:bg-chip-hover">▶</button>
-                    @endunless
+                                    @isset($played['status'])
+                                        <span class="font-mono text-xs text-mint">{{ $played['status'] }}</span>
+                                    @endisset
 
-                    <span wire:loading wire:target="play('{{ $issue['id'] }}')" role="status"
-                          aria-label="Starting a workspace" class="text-sm text-mint">…</span>
+                                    @if ($played['error'] ?? null)
+                                        <span role="alert" class="text-xs text-rose">✗ {{ $played['error'] }}</span>
+                                    @endif
+                                </div>
+                            @endif
+                        </div>
 
-                    @isset($played['status'])
-                        <span class="text-sm text-mint">{{ $played['status'] }}</span>
-                    @endisset
+                        <div class="-mt-[3px] flex items-center gap-1.5 self-start">
+                            {{-- aria-label on both: a bare ▶ and an unlabelled checkbox have no
+                                 accessible name at all, and `title` is not a reliable one.
+                                 Claiming is the default, so a ticked box stays faint and an
+                                 unticked one — the decision worth seeing — stands out. --}}
+                            @unless (isset($played['status']))
+                                <input type="checkbox" wire:model="claim.{{ $issue['id'] }}" class="size-3.5 cursor-pointer accent-muted opacity-40 transition-opacity not-checked:opacity-100 hover:opacity-100 focus-visible:opacity-100"
+                                       aria-label="Claim issue #{{ $issue['number'] }}"
+                                       title="Assign to me and move to {{ config('orchestrator.board.started') }}">
+                                <button wire:click="play('{{ $issue['id'] }}')" wire:loading.attr="disabled" wire:target="play('{{ $issue['id'] }}')"
+                                        aria-label="Play issue #{{ $issue['number'] }}" title="Play"
+                                        class="icon-btn bg-chip text-mint"><x-icon name="play" class="size-3.5" /></button>
+                            @endunless
 
-                    @if ($played['error'] ?? null)
-                        <span role="alert" class="text-sm text-rose">✗ {{ $played['error'] }}</span>
-                    @endif
+                            <span wire:loading wire:target="play('{{ $issue['id'] }}')" role="status" aria-label="Starting a workspace"
+                                  class="size-3 animate-spin rounded-full border border-line border-t-mint"></span>
+                        </div>
 
-                    @if ($played['drop'] ?? false)
-                        <span x-data x-init="setTimeout(() => $wire.dismiss('{{ $issue['id'] }}'), 1500)"></span>
-                    @endif
-                </li>
-            @endforeach
-        </x-section>
-    @endforeach
+                        {{-- Marks the row leaving so it collapses out, then drops it once the ✓ has
+                             been readable for a beat. --}}
+                        @if ($played['drop'] ?? false)
+                            <span x-data x-init="setTimeout(() => { $el.closest('li').classList.add('leaving'); setTimeout(() => $wire.dismiss('{{ $issue['id'] }}'), 250) }, 1250)"></span>
+                        @endif
+                    </li>
+                @endforeach
+            </x-section>
+        @endforeach
+    </x-lane>
 </div>

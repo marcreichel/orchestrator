@@ -39,6 +39,21 @@ it('drops issues from the second list that are already assigned to me', function
         ->assertSee('Issue 2');
 });
 
+// Only my own issues start open. wire:ignore.self keeps a list the user opened from
+// snapping shut on the next poll.
+it('folds the extra lists away', function () {
+    fakeGitHub(assigned: [issueItem(1)], bugs: [issueItem(4)]);
+
+    $html = loaded('issues')->html();
+
+    $fold = strpos($html, 'wire:ignore.self');
+
+    // Assigned to me comes before the first fold, Unassigned bugs after it.
+    expect($fold)->not->toBeFalse()
+        ->and(strpos($html, 'Assigned to me'))->toBeLessThan($fold)
+        ->and(strpos($html, 'Unassigned bugs'))->toBeGreaterThan($fold);
+});
+
 it('lists unassigned bugs in their own section', function () {
     fakeGitHub(assigned: [issueItem(1)], bugs: [issueItem(4)]);
 
@@ -179,7 +194,7 @@ it('marks a list that GitHub had more matches for', function () {
 
     loaded('issues')
         ->assertSet('truncated.assigned', true)
-        ->assertSee('(1+)');
+        ->assertSee('1+');
 });
 
 it('leaves a complete list unmarked', function () {
@@ -187,8 +202,7 @@ it('leaves a complete list unmarked', function () {
 
     loaded('issues')
         ->assertSet('truncated.assigned', false)
-        ->assertSee('(1)')
-        ->assertDontSee('(1+)');
+        ->assertDontSee('1+');
 });
 
 it('drops the row once the issue is in flight', function () {
@@ -197,7 +211,7 @@ it('drops the row once the issue is in flight', function () {
     loaded('issues')
         ->call('dismiss', 'I_1')
         ->assertCount('assigned', 0)
-        ->assertSee('Nothing here.');
+        ->assertSee('Nothing is assigned to you.');
 });
 
 // `nodes(ids:)` is capped at 100, and three lists of up to 100 issues each blow past it.

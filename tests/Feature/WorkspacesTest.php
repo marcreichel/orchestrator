@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Js;
 
 beforeEach(function () {
     config()->set('orchestrator.repos', ['a/b' => 'repo-1']);
@@ -50,7 +51,7 @@ it('lists a freshly played workspace without refetching', function () {
     fakeOrca();
 
     loaded('workspaces')
-        ->assertSee('Nothing here.')
+        ->assertSee('No workspaces running. Play an issue to start one.')
         ->dispatch('workspace-created', workspace: [
             'id' => 'ws-9',
             'branch' => 'feature/9',
@@ -80,7 +81,7 @@ it('keeps the cached list when a refresh comes back empty', function () {
 
     loaded('workspaces')
         ->assertCount('workspaces', 0)
-        ->assertSee('Nothing here.');
+        ->assertSee('No workspaces running. Play an issue to start one.');
 
     expect(Cache::get('orchestrator.workspaces'))->toBe($cached);
 });
@@ -100,7 +101,7 @@ it('shows what the agent in a workspace is doing', function () {
 it('brings the first terminal of a workspace to the front', function () {
     fakeOrca([worktree()]);
 
-    loaded('workspaces')->call('open', 'repo-1::/orca/feature-1')->assertSet('error', null);
+    loaded('workspaces')->call('open', 'repo-1::/orca/feature-1')->assertSet('workspaces.0.error', null);
 
     Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'terminal switch --terminal term_1'));
     Process::assertRan(fn ($process): bool => str_contains(implode(' ', (array) $process->command), 'open -a Orca'));
@@ -109,7 +110,28 @@ it('brings the first terminal of a workspace to the front', function () {
 it('says so when a workspace has no live terminal to open', function () {
     fakeOrca([worktree()], terminals: []);
 
-    loaded('workspaces')->call('open', 'repo-1::/orca/feature-1')->assertSet('error', 'This workspace has no live terminal');
+    // On the row, not the lane: the lane's error only shows while the list is empty.
+    loaded('workspaces')
+        ->call('open', 'repo-1::/orca/feature-1')
+        ->assertSet('workspaces.0.error', 'This workspace has no live terminal')
+        ->assertSee('✗ This workspace has no live terminal');
+});
+
+it('keeps the row of a workspace that could not be removed', function () {
+    fakeOrca([worktree()]);
+    // Registered last, so it wins over the succeeding `worktree rm` that fakeOrca() adds.
+    Process::fake(["*'worktree' 'rm'*" => Process::result(errorOutput: 'Worktree is locked', exitCode: 1)]);
+
+    loaded('workspaces')
+        ->call('remove', 'repo-1::/orca/feature-1')
+        ->assertCount('workspaces', 1)
+        ->assertSee('✗ Worktree is locked');
+});
+
+it('puts the number of working agents in the tab title', function () {
+    fakeOrca([worktree(['status' => 'working'])]);
+
+    loaded('workspaces')->assertSeeHtml('document.title = '.Js::from(config('app.name').' · 1 working'));
 });
 
 it('opens the changed files of a workspace as diffs', function () {

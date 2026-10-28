@@ -16,3 +16,6 @@ The lists must carry `#[Isolate]`. Without it Livewire pools the same-tick commi
 Header spinners use an untargeted `wire:loading`: the Refresh button reloads by dispatching an event, which commits as `__dispatch`, so `wire:target="load"` never matches it.
 
 `mount()` only reads the cache (`orchestrator.issues|prs|workspaces`) so the page renders instantly; `wire:init="load"` does the live fetch and writes the cache back on success. Keep the components undeferred — `defer` would cost a round-trip before the cached lists appear.
+
+## Keep wire:click on plain elements, not on Blade components
+Attributes passed to a Blade component are escaped, so `wire:click="play('I_1')"` renders as `play(&#039;I_1&#039;)`. Livewire still works, but the `assertSeeHtml('wire:click="play(\'I_1\')"')` tests stop matching. That's why the row actions are plain `<button class="icon-btn">` with an `<x-icon>` inside, and not an icon-button component.
