@@ -15,7 +15,7 @@
 
         @vite('resources/css/app.css')
     </head>
-    <body class="bg-ink text-[15px]/normal text-paper">
+    <body class="bg-ink text-sm/normal text-paper">
         {{-- Pinned and translucent, so the lanes scroll under it. Fixed h-15, its hairline
              included: the lane and list headings pin themselves right below it (3.75rem, see
              --lane-top). Full width; only its contents keep to the page column. --}}
@@ -33,8 +33,8 @@
                     </a>
                 </h1>
 
-                <a href="{{ route('repositories') }}"
-                   class="rounded-md px-2.5 py-1 text-sm text-muted transition-colors hover:bg-chip-hover hover:text-paper">Repositories</a>
+                <a href="{{ route('repositories') }}" @if (request()->routeIs('repositories')) aria-current="page" @endif
+                   class="rounded-md px-2.5 py-1 text-sm text-muted transition-colors hover:bg-chip-hover hover:text-paper aria-[current=page]:text-paper">Repositories</a>
 
                 {{-- Page-specific buttons; a named slot that wasn't passed is undefined. --}}
                 {{ $actions ?? '' }}

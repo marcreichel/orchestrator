@@ -25,11 +25,13 @@
 :root {
     color-scheme: dark;
     -webkit-font-smoothing: antialiased;
+    scrollbar-color: var(--color-chip-hover) transparent;
 }
 
-/* Keyboard focus only, so a click never leaves a ring behind. */
+/* Keyboard focus only, so a click never leaves a ring behind. Neutral, so mint stays a
+   status colour; 50% white is the least that keeps 3:1 against ink. */
 :focus-visible {
-    outline: 2px solid var(--color-mint);
+    outline: 2px solid color-mix(in oklab, var(--color-paper) 50%, transparent);
     outline-offset: 2px;
     border-radius: 0.25rem;
 }
@@ -126,6 +128,7 @@
     border-radius: 0.75rem;
     background: var(--color-surface);
     padding-inline: 1rem;
+    scrollbar-width: thin;
 }
 
 /* A GitHub label's colour, as a dot on a neutral chip. Lifted toward the text colour so a

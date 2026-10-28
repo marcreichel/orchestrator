@@ -33,11 +33,12 @@
          with the workspaces underneath until there's room for three. minmax(0,…) — plain 1fr
          won't shrink below its content and pushes the page wide. Workspaces get the narrower
          track: a branch and four buttons need less than a title does.
-         Side by side, each lane scrolls on its own (7.75rem is the page header, its margin and
-         the body's bottom padding), so the long issue list doesn't drag the other two along.
+         Side by side, each lane fills the viewport and scrolls on its own (7.75rem is the page
+         header, its margin and the main's bottom padding), so they read as fixed panes and the
+         long issue list doesn't drag the other two along.
          --lane-top re-pins the lane headings to the top of their own scroller. Each lane is a
          panel, whose padding keeps the row hover tint from tripping a sideways scroll. --}}
-    <div class="grid items-start gap-4 *:panel *:pb-2 lg:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)] xl:*:max-h-[calc(100dvh-7.75rem)] xl:*:overflow-x-hidden xl:*:overflow-y-auto xl:*:overscroll-contain xl:*:[--lane-top:0px]">
+    <div class="grid items-start gap-4 *:panel *:pb-2 lg:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)] xl:*:h-[calc(100dvh-7.75rem)] xl:*:overflow-x-hidden xl:*:overflow-y-auto xl:*:overscroll-contain xl:*:[--lane-top:0px]">
         {{-- Not deferred: mounting only reads the cache, so the last known lists render
              with the page. Each still fetches in its own `wire:init` request, so a dead
              GitHub or Orca only takes out its own list. --}}

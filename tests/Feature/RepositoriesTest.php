@@ -7,6 +7,7 @@ it('lists every repository with its id', function () {
         ->assertOk()
         ->assertSee('core-ng')
         ->assertSee('f64cd685')
+        ->assertSeeHtml('aria-current="page"')
         // No Livewire here, so nothing would ever hide a spinner again.
         ->assertDontSeeHtml('animate-spin');
 });

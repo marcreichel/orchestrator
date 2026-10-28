@@ -8,7 +8,7 @@
         {{-- Sticky under the lane heading, which is 2.5rem tall and pinned at --lane-top.
              Bled to the panel's edges, so rows don't show through beside it. --}}
         <{{ $collapsible ? 'summary' : 'h3' }} @class([
-            'material sticky top-[calc(var(--lane-top,3.75rem)+2.5rem)] z-[4] -mx-4 mt-4 flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium tracking-[.08em] text-muted uppercase',
+            'material sticky top-[calc(var(--lane-top,3.75rem)+2.5rem)] z-[4] -mx-4 mt-4 flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-muted',
             'cursor-pointer list-none hover:text-paper [&::-webkit-details-marker]:hidden' => $collapsible,
         ])>
             @if ($collapsible)
@@ -18,7 +18,7 @@
             {{ $title }}
             @unless (is_null($count))
                 <span @if ($truncated) title="GitHub returned only the first page of matches — there are more than this." @endif
-                      class="font-mono tracking-normal tabular-nums">{{ $count }}{{ $truncated ? '+' : '' }}</span>
+                      class="font-mono tabular-nums">{{ $count }}{{ $truncated ? '+' : '' }}</span>
             @endunless
         </{{ $collapsible ? 'summary' : 'h3' }}>
     @endif
