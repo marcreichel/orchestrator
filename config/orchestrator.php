@@ -95,7 +95,7 @@ return [
         'issue' => '/implement-issue %d',
         'pull_request' => '/my-pr-review %d',
         'merge_conflicts' => '/merge-upstream %s',
-        'review_comments' => 'Address every unresolved review thread on PR #%d: for a valid comment, fix the code, react with a thumbs up to the comment, and resolve the thread. If you leave a comment as is, reply with why and leave the thread open.',
+        'review_comments' => 'First run `gh pr checkout %1$d` so your changes land on the PR branch. Then address every unresolved review thread on PR #%1$d: for a valid comment, fix the code, react with a thumbs up to the comment, and resolve the thread. If you leave a comment as is, reply with why and leave the thread open.',
     ],
 
 ];
