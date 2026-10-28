@@ -20,24 +20,36 @@
              included: the lane and list headings pin themselves right below it (3.75rem, see
              --lane-top). Full width; only its contents keep to the page column. --}}
         <header class="material sticky top-0 z-10 h-15 border-b border-line">
-            <div class="mx-auto flex h-full max-w-4xl items-center gap-2 px-4 sm:px-6 lg:max-w-[100rem]">
-                <h1 class="flex-1 text-lg font-medium tracking-[-.02em]">
-                    <a href="{{ route('home') }}" class="inline-flex items-center gap-2.5">
-                        <svg width="26" height="26" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-                             stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-                            <path d="M6 10h4V5h3M6 10h7M6 10h4v5h3"/>
-                            <circle cx="4" cy="10" r="2" fill="currentColor" stroke="none"/>
-                            <circle cx="15" cy="5" r="1.6"/><circle cx="15" cy="10" r="1.6"/><circle cx="15" cy="15" r="1.6"/>
-                        </svg>
-                        {{ config('app.name') }}
-                    </a>
-                </h1>
+            {{-- Equal outer tracks keep the centre slot in the true middle whatever sits either
+                 side; plain 1fr won't shrink below its content, so a tight header pushes rather
+                 than overlaps. --}}
+            <div class="mx-auto grid h-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 sm:px-6 lg:max-w-[100rem]">
+                <div class="flex items-center">
+                    <h1 class="text-lg font-medium tracking-[-.02em]">
+                        <a href="{{ route('home') }}" class="inline-flex items-center gap-2.5">
+                            <svg width="26" height="26" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                                 stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                                <path d="M6 10h4V5h3M6 10h7M6 10h4v5h3"/>
+                                <circle cx="4" cy="10" r="2" fill="currentColor" stroke="none"/>
+                                <circle cx="15" cy="5" r="1.6"/><circle cx="15" cy="10" r="1.6"/><circle cx="15" cy="15" r="1.6"/>
+                            </svg>
+                            {{ config('app.name') }}
+                        </a>
+                    </h1>
 
-                <a href="{{ route('repositories') }}" @if (request()->routeIs('repositories')) aria-current="page" @endif
-                   class="rounded-md px-2.5 py-1 text-sm text-muted transition-colors hover:bg-chip-hover hover:text-paper aria-[current=page]:text-paper">Repositories</a>
+                    {{-- Pages sit next to the name. --}}
+                    <nav class="ml-4 flex items-center">
+                        <a href="{{ route('repositories') }}" @if (request()->routeIs('repositories')) aria-current="page" @endif
+                           class="rounded-md px-2.5 py-1 text-sm text-muted transition-colors hover:bg-chip-hover hover:text-paper aria-[current=page]:text-paper">Repositories</a>
+                    </nav>
+                </div>
 
-                {{-- Page-specific buttons; a named slot that wasn't passed is undefined. --}}
-                {{ $actions ?? '' }}
+                {{-- Page-specific slots; a named slot that wasn't passed is undefined. The
+                     wrappers stay even when empty, or the actions would slide into the
+                     centre track. --}}
+                <div>{{ $center ?? '' }}</div>
+
+                <div class="flex items-center justify-end gap-2">{{ $actions ?? '' }}</div>
             </div>
         </header>
 

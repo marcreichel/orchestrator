@@ -2,6 +2,7 @@
 paths:
   - app/Support/GitHub.php
   - app/Support/Workspaces.php
+  - app/Support/Claude.php
 ---
 
 # Support
@@ -25,3 +26,6 @@ Orca answers `{ok, result}` on stdout and a non-zero exit on failure; either rai
 
 ## Searches return one page plus a truncated flag
 `searchItems()`, `searchMany()`, `issues()` and `pullRequests()` all return `['items' => [...], 'truncated' => bool]`, not a bare list. Only the first page (`per_page=100`) is ever requested, so `truncated` is `total_count > count($items)` and the sections render it as a `+` on the count. Without it a capped list reads as the whole picture — and the board filter then thins that arbitrary 100 further, so the number on screen looks authoritative when it is not.
+
+## Claude usage: read the Keychain token, never refresh it
+Subscription usage comes from the undocumented `GET api.anthropic.com/api/oauth/usage` (header `anthropic-beta: oauth-2025-04-20`), which is what Claude Code's /usage calls. The bearer token is `claudeAiOauth.accessToken` from the Keychain item `Claude Code-credentials`. Never use the refresh_token: refreshing rotates it and logs Claude Code out. An expired token is expected and only marks the header numbers stale until Claude Code next runs.

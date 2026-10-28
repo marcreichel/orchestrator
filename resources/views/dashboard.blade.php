@@ -1,4 +1,8 @@
 <x-layout>
+    <x-slot:center>
+        <livewire:usage />
+    </x-slot:center>
+
     <x-slot:actions>
         {{-- A refresh spends four of GitHub's thirty search requests per minute, so
              repeated clicking can burn the quota the poll depends on. Throttled rather

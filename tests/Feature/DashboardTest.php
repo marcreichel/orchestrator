@@ -11,6 +11,14 @@ it('renders the three sections', function () {
         ->assertSeeLivewire('workspaces');
 });
 
+// Pages are a menu next to the app name, usage sits in the centre track and the page's
+// own actions stay on the right.
+it('lays the header out as menu, usage, actions', function () {
+    $this->get('/')
+        ->assertSeeInOrder(['grid-cols-[1fr_auto_1fr]', config('app.name'), '<nav', 'Repositories', '</nav>'], escape: false)
+        ->assertSeeInOrder(['</nav>', 'wire:name="usage"', 'Refresh'], escape: false);
+});
+
 // Without the memo Livewire bundles all three loads into one request, so a slow list
 // holds up the others.
 it('isolates every list into its own request', function () {
