@@ -108,9 +108,10 @@ new #[Isolate] class extends Component
 };
 ?>
 
-{{-- 300s, not 5m — see the issues component. Full width under the two inbox lanes until
-     there's room for a third column. --}}
-<div wire:init="load" wire:poll.300s="load" class="lg:col-span-2 xl:col-span-1">
+{{-- Every 5s, not like the 300s inbox lanes: it's a local CLI call, and the agents' working
+     state is the thing to watch. `.visible` stops it in a background tab. Full width under
+     the two inbox lanes until there's room for a third column. --}}
+<div wire:init="load" wire:poll.5s.visible="load" class="lg:col-span-2 xl:col-span-1">
     {{-- Puts the working agents in the tab title, to check on them from another tab. Keyed on
          the count, so Livewire swaps the element and x-init runs again when it changes. --}}
     @php($working = count(array_filter($workspaces, fn (array $workspace): bool => ($workspace['agent'] ?? null) === 'working')))

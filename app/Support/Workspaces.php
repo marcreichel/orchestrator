@@ -24,7 +24,7 @@ class Workspaces
         // All three lists want this on the same refresh — the issue and pull request ones
         // to mark played rows, the workspace one to render them — and they load in
         // separate requests, so only a cache can collapse that into one fetch. Just long
-        // enough to cover the fan-out; a failure isn't cached at all.
+        // enough to cover the fan-out, and shorter than the workspaces poll; a failure isn't cached at all.
         //
         // Locked, or the cache never gets the chance: the three requests are isolated and
         // go out together, so on a cold cache all three miss it in the same instant and
@@ -33,7 +33,7 @@ class Workspaces
         /** @var array<int, array<string, mixed>> */
         return Cache::lock('orchestrator.workspaces.fetch', 30)->block(15, fn (): array => Cache::remember(
             'orchestrator.workspaces.all',
-            now()->addSeconds(15),
+            now()->addSeconds(3),
             function (): array {
                 $repoIds = array_values(Config::array('orchestrator.repos'));
 

@@ -53,6 +53,8 @@ it('renders the cached lists without fetching', function () {
         // Every five minutes. Not `.5m`: wire:poll parses only `ms` and `s`, so an
         // unparsed modifier would quietly poll at the 2s default.
         ->assertSeeHtml('wire:poll.300s="load"')
+        // The workspaces poll fast, and only while the tab is visible.
+        ->assertSeeHtml('wire:poll.5s.visible="load"')
         // The header spinner runs while the background refresh is in flight, and announces
         // itself — an unlabelled one is silent to a screen reader.
         ->assertSeeHtml('wire:loading role="status" aria-label="Refreshing"');
