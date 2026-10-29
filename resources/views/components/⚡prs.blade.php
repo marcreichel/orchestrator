@@ -98,7 +98,8 @@ new #[Isolate] class extends Component
 ?>
 
 {{-- 300s, not 5m — see the issues component. --}}
-{{-- Flex column so the stat can sit at the foot of the panel even when the list is short. --}}
+{{-- Flex column so the stat can sit at the foot of the panel even when the list is short.
+     The stat reaches past the panel's pb-2 (sticky insets count from inside it) to sit on its edge. --}}
 <div wire:init="load" wire:poll.300s="load" class="panel flex min-h-0 flex-1 flex-col pb-2 xl:overflow-y-auto xl:overscroll-contain xl:scroll-fade xl:[--lane-top:0px]">
     <x-lane class="flex-1" title="Review requested" :count="count($pullRequests)" :truncated="$truncated" spinner>
         <x-section :count="count($pullRequests)" :error="$error" empty="No reviews waiting for you.">
@@ -159,6 +160,6 @@ new #[Isolate] class extends Component
     </x-lane>
 
     @if ($reviewedThisWeek !== null)
-        <p class="material sticky bottom-0 z-[5] -mx-4 mt-auto border-t border-line px-4 py-2 text-center text-xs text-muted tabular-nums">{{ $reviewedThisWeek }}{{ $reviewedTruncated ? '+' : '' }} {{ Str::plural('pull request', $reviewedThisWeek) }} reviewed in the last 7 days</p>
+        <p class="material sticky -bottom-2 z-[5] -mx-4 mt-auto -mb-2 border-t border-line px-4 py-2 text-center text-xs text-muted tabular-nums">{{ $reviewedThisWeek }}{{ $reviewedTruncated ? '+' : '' }} {{ Str::plural('pull request', $reviewedThisWeek) }} reviewed in the last 7 days</p>
     @endif
 </div>
