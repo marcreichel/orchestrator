@@ -46,6 +46,24 @@ new #[Isolate] class extends Component
         return $resetsAt ? Carbon::parse($resetsAt)->timezone(config('app.timezone'))->format('D, M j g:i A') : 'unknown';
     }
 
+    /**
+     * Where the window lands at its reset if the rest of it burns like the part so far.
+     * Null until a tenth of the window has passed — the rate is noise before that — and
+     * for a reset that's missing or already behind us.
+     */
+    public function forecast(string $label, array $window): ?int
+    {
+        $length = ['5h' => 5 * 3600, '7d' => 7 * 86400][$label] ?? null;
+
+        if (! $length || ! $window['resetsAt']) {
+            return null;
+        }
+
+        $elapsed = 1 - now()->diffInSeconds(Carbon::parse($window['resetsAt']), false) / $length;
+
+        return $elapsed >= 0.1 && $elapsed < 1 ? (int) round($window['percent'] / $elapsed) : null;
+    }
+
     /** Muted until it's worth noticing. */
     public function tone(int $percent): string
     {
@@ -62,7 +80,7 @@ new #[Isolate] class extends Component
      The countdowns tick in the browser, or they'd sit up to a poll behind; a time that
      won't parse (an old cache entry) shows nothing until the next load. They only fit
      from lg, where the header has room to spare. --}}
-@php($tooltip = collect($usage)->map(fn (array $window, string $label): string => "{$label} resets ".$this->resetTime($window['resetsAt']))->push($error ? "Stale: {$error}" : null)->filter()->implode("\n"))
+@php($tooltip = collect($usage)->map(fn (array $window, string $label): string => "{$label} resets ".$this->resetTime($window['resetsAt']).(($pace = $this->forecast($label, $window)) !== null ? ", on pace for {$pace}%" : ''))->push($error ? "Stale: {$error}" : null)->filter()->implode("\n"))
 <div wire:init="load" wire:poll.300s="load"
      x-data="{
          now: Date.now(),
@@ -85,6 +103,9 @@ new #[Isolate] class extends Component
                 <span class="block h-full rounded-full bg-current {{ $this->tone($window['percent']) }}" style="width: {{ min($window['percent'], 100) }}%"></span>
             </span>
             <span class="{{ $this->tone($window['percent']) }}">{{ $window['percent'] }}%</span>
+            @if ($window['percent'] < 100 && ($pace = $this->forecast($label, $window)) >= 100)
+                <span class="text-rose" title="On pace for {{ $pace }}% by the reset">→{{ $pace }}%</span>
+            @endif
             <span x-text="left(@js($window['resetsAt']))" class="hidden text-muted/60 lg:inline"></span>
         </span>
     @empty

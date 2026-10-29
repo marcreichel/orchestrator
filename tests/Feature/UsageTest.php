@@ -93,3 +93,29 @@ it('renders the cached numbers before fetching', function () {
 
     Livewire::test('usage')->assertSee('33%');
 });
+
+it('forecasts where a window lands at its reset and flags one on pace to run out', function () {
+    $this->travelTo('2026-10-28T01:59:59+00:00');
+    fakeKeychain();
+    // 5h: 2h of 5h gone at 60% → on pace for 150%. 7d: ~6d of 7d gone at 10% → 12%.
+    Http::fake(['api.anthropic.com/api/oauth/usage' => Http::response([
+        'five_hour' => ['utilization' => 60, 'resets_at' => '2026-10-28T04:59:59+00:00'],
+        'seven_day' => ['utilization' => 10, 'resets_at' => '2026-10-29T01:59:59+00:00'],
+    ])]);
+
+    loaded('usage')
+        ->assertSee('→150%')
+        ->assertDontSee('→12%')
+        ->assertSee('on pace for 12%');
+});
+
+it('skips the forecast in the first tenth of a window', function () {
+    $this->travelTo('2026-10-28T00:10:00+00:00');
+    fakeKeychain();
+    Http::fake(['api.anthropic.com/api/oauth/usage' => Http::response([
+        'five_hour' => ['utilization' => 50, 'resets_at' => '2026-10-28T05:00:00+00:00'],
+        'seven_day' => ['utilization' => 1, 'resets_at' => '2026-11-04T00:10:00+00:00'],
+    ])]);
+
+    loaded('usage')->assertDontSee('on pace');
+});
