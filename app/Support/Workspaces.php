@@ -202,6 +202,10 @@ class Workspaces
      */
     private static function start(string $repo, string $name, string $url, string $prompt): array
     {
+        if ($beforeCreate = Config::get("orchestrator.before_create.{$repo}")) {
+            Process::run($beforeCreate)->throw();
+        }
+
         $result = self::orca([
             'worktree', 'create',
             '--repo', 'id:'.self::repositoryId($repo),

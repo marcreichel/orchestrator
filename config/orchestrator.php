@@ -31,6 +31,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Before a workspace is created
+    |--------------------------------------------------------------------------
+    |
+    | GitHub repository full name => shell command run before every `orca
+    | worktree create` for it, as a JSON object. Orca's own setup hook runs
+    | after the checkout, too late for anything the checkout itself depends
+    | on, such as a git hook that has to be patched before it fires.
+    |
+    */
+
+    'before_create' => json_decode(env('ORCHESTRATOR_BEFORE_CREATE') ?: '{}', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Extra issue lists
     |--------------------------------------------------------------------------
     |

@@ -21,6 +21,8 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
+    // The configured commands run scripts on this machine; a test opts back in with a faked one.
+    ->beforeEach(fn () => config(['orchestrator.before_create' => []]))
     ->in('Feature');
 
 /*

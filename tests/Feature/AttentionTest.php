@@ -56,6 +56,40 @@ it('starts a merge workspace for a conflicting pull request', function () {
         && in_array('fix-1', $process->command, true));
 });
 
+it('runs the repository\'s before-create command ahead of the create', function () {
+    fakeGitHub(mine: [pullRequestItem(1)], threads: ['PR_1' => ['mergeable' => 'CONFLICTING', 'resolved' => [false]]]);
+    $guarded = false;
+    $guardedAtCreate = null;
+    Process::fake([
+        'guard-hooks' => function () use (&$guarded) {
+            $guarded = true;
+
+            return Process::result();
+        },
+        "*'worktree' 'create'*" => function () use (&$guarded, &$guardedAtCreate) {
+            $guardedAtCreate = $guarded;
+
+            return Process::result(json_encode(['ok' => true, 'result' => ['worktree' => worktree()]]));
+        },
+    ]);
+    config(['orchestrator.before_create' => ['a/b' => 'guard-hooks']]);
+
+    loaded('attention')->call('fix', 1);
+
+    expect($guardedAtCreate)->toBeTrue();
+});
+
+it('does not create the workspace when the before-create command fails', function () {
+    fakeGitHub(mine: [pullRequestItem(1)], threads: ['PR_1' => ['mergeable' => 'CONFLICTING', 'resolved' => [false]]]);
+    fakeOrca(created: worktree());
+    Process::fake(['guard-hooks' => Process::result(errorOutput: 'no such repo', exitCode: 1)]);
+    config(['orchestrator.before_create' => ['a/b' => 'guard-hooks']]);
+
+    loaded('attention')->call('fix', 1);
+
+    assertOrcaCalled("'worktree' 'create'", 0);
+});
+
 it('asks to address the comments when there are no conflicts', function () {
     fakeGitHub(mine: [pullRequestItem(2)], threads: ['PR_2' => ['resolved' => [false]]]);
     fakeOrca(created: worktree());
