@@ -28,6 +28,20 @@ it('lists only the workspaces of mapped repositories, newest first', function ()
     assertOrcaCalled('worktree ps', 1);
 });
 
+// It polls every 5s, so a header spinner would flash on every tick.
+it('has no refresh spinner in its header', function () {
+    fakeOrca([worktree()]);
+
+    loaded('workspaces')->assertDontSeeHtml('aria-label="Refreshing"');
+});
+
+// Same reason: the header's "Updated …" would read "just now" forever.
+it('does not bump the header\'s updated time', function () {
+    fakeOrca([worktree()]);
+
+    loaded('workspaces')->assertNotDispatched('refreshed');
+});
+
 it('shows the linked issue when Orca returns one', function () {
     fakeOrca([linkedWorktree(42, 'https://github.com/a/b/issues/42')]);
 

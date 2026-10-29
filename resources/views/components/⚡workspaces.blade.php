@@ -39,8 +39,6 @@ new #[Isolate] class extends Component
             $this->error = $exception->getMessage();
             $this->workspaces = [];
         }
-
-        $this->dispatch('refreshed');
     }
 
     public function open(string $id): void
@@ -117,7 +115,7 @@ new #[Isolate] class extends Component
     @php($working = count(array_filter($workspaces, fn (array $workspace): bool => ($workspace['agent'] ?? null) === 'working')))
     <span wire:key="title-{{ $working }}" x-data x-init="document.title = @js(config('app.name').($working ? " · {$working} working" : ''))"></span>
 
-    <x-lane title="Workspaces" :count="count($workspaces)" spinner>
+    <x-lane title="Workspaces" :count="count($workspaces)">
         <x-section :count="count($workspaces)" :error="$error" empty="No workspaces running. Play an issue to start one.">
             @foreach ($workspaces as $workspace)
                 {{-- Keyed on the workspace, not on its position: prepend() puts a freshly played
