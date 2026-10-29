@@ -52,7 +52,11 @@ class GitHub
     {
         return array_map(
             fn (array $page): array => [
-                'items' => $this->issueRows($page['items']),
+                'items' => array_values(array_filter($this->issueRows($page['items']), fn (array $issue): bool => ! self::isIgnored(
+                    $this->ignore,
+                    (string) $issue['repo'],
+                    (int) $issue['number'],
+                ))),
                 'truncated' => $page['truncated'],
             ],
             $this->searchMany(array_map(
@@ -63,12 +67,60 @@ class GitHub
     }
 
     /**
+     * Open issues in the mapped repos matching free text — GitHub qualifiers pass through —
+     * or, for a bare `123`/`#123`, that one issue whatever its state. None of the lists'
+     * filters apply: whoever searched for an issue wants to see it.
+     *
+     * @return array{items: array<int, array<string, mixed>>, truncated: bool}
+     */
+    public function searchIssues(string $text): array
+    {
+        if (preg_match('/^#?(\d+)$/', $text, $match)) {
+            return ['items' => $this->issueByNumber((int) $match[1]), 'truncated' => false];
+        }
+
+        $page = $this->searchItems(self::scope($this->repoNames)." is:issue is:open {$text}");
+
+        return ['items' => $this->issueRows($page['items']), 'truncated' => $page['truncated']];
+    }
+
+    /**
+     * The issue with that number in each mapped repo that has one. Search can't match
+     * on the number, so it's fetched directly.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function issueByNumber(int $number): array
+    {
+        $items = [];
+
+        // ponytail: one request per repo in turn, pool them if many repos get mapped.
+        foreach ($this->repoNames as $repo) {
+            $response = $this->client()->get("repos/{$repo}/issues/{$number}");
+
+            // Not in this repo, or deleted (410).
+            if ($response->notFound() || $response->status() === 410) {
+                continue;
+            }
+
+            $item = (array) $response->throw()->json();
+
+            // The issues endpoint answers for pull requests too — those are the PR lane's.
+            if (! isset($item['pull_request'])) {
+                $items[] = $item;
+            }
+        }
+
+        return $this->issueRows($items);
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
     private function issueRows(array $items): array
     {
-        $issues = array_map(fn (array $item): array => [
+        return array_map(fn (array $item): array => [
             'id' => (string) $item['node_id'],
             'number' => (int) $item['number'],
             'title' => (string) $item['title'],
@@ -79,13 +131,9 @@ class GitHub
                 'name' => (string) data_get($label, 'name'),
                 'color' => (string) data_get($label, 'color'),
             ], (array) $item['labels']),
+            // Only a lookup by number can turn up a closed one.
+            'closed' => ($item['state'] ?? 'open') === 'closed',
         ], $items);
-
-        return array_values(array_filter($issues, fn (array $issue): bool => ! self::isIgnored(
-            $this->ignore,
-            (string) $issue['repo'],
-            (int) $issue['number'],
-        )));
     }
 
     /**

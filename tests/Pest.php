@@ -4,6 +4,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -55,6 +56,8 @@ function loaded(string $name): Testable
  * @param  array<string, string>  $checks  Pull request node id => CI rollup state.
  * @param  array<int, array<string, mixed>>  $mine  My own open pull requests.
  * @param  array<string, array<string, mixed>>  $threads  Pull request node id => mergeable state and thread resolutions.
+ * @param  array<int, array<string, mixed>>  $search  What the header's issue search matches.
+ * @param  array<int, array<string, mixed>>  $byNumber  The issues a `#123` lookup can fetch, matched on repo and number.
  * @param  int|null  $totalCount  What GitHub says it matched, when that is more than the
  *                                page it hands back. Defaults to the page's own size, so
  *                                a search reads as complete unless a test says otherwise.
@@ -72,23 +75,37 @@ function fakeGitHub(
     array $reviews = [],
     array $mine = [],
     array $threads = [],
+    array $search = [],
+    array $byNumber = [],
 ): void {
     Http::fake([
         // The bug search is told apart by `type:Bug` — `no:assignee` won't do, the
         // second list's own fixture query uses it too.
-        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests, $reviewed, $mine, $totalCount) {
+        'api.github.com/search/issues*' => function (Request $request) use ($assigned, $other, $bugs, $pullRequests, $reviewed, $mine, $search, $totalCount) {
             $url = $request->url();
 
             $items = match (true) {
                 str_contains($url, 'reviewed-by') => $reviewed,
                 str_contains($url, 'author%3A%40me') => $mine,
                 str_contains($url, 'is%3Apr') => $pullRequests,
+                // Only the lists exclude blocked issues; the header search filters nothing.
+                ! str_contains($url, 'is%3Ablocked') => $search,
                 str_contains($url, 'assignee%3A%40me') => $assigned,
                 str_contains($url, 'type%3ABug') => $bugs,
                 default => $other,
             };
 
             return Http::response(['total_count' => $totalCount ?? count($items), 'items' => $items]);
+        },
+
+        'api.github.com/repos/*/issues/*' => function (Request $request) use ($byNumber) {
+            foreach ($byNumber as $item) {
+                if (str_ends_with($request->url(), Str::after($item['repository_url'], 'api.github.com')."/issues/{$item['number']}")) {
+                    return Http::response($item);
+                }
+            }
+
+            return Http::response(['message' => 'Not Found'], 404);
         },
 
         'api.github.com/graphql' => function (Request $request) use ($statuses, $checks, $reviews, $threads, $claimError) {

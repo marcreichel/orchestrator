@@ -41,6 +41,21 @@
     border-radius: 0.25rem;
 }
 
+/* WebKit's clear button, redrawn as a muted 1.5px-stroke × like the hand-drawn icons —
+   the default is a bold white glyph that outshouts the text it clears. */
+input[type="search"]::-webkit-search-cancel-button {
+    appearance: none;
+    width: 0.75rem;
+    height: 0.75rem;
+    background: var(--color-muted);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M4 4l8 8M12 4l-8 8'/%3E%3C/svg%3E") center / contain no-repeat;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--color-paper);
+    }
+}
+
 /* Square icon button; the press shows on pointer-down, not on release. */
 @utility icon-btn {
     display: inline-grid;

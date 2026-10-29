@@ -16,13 +16,19 @@
                   class="rounded bg-chip px-1.5 font-mono text-xs/5 text-muted tabular-nums">{{ $count }}{{ $truncated ? '+' : '' }}</span>
         @endunless
 
-        {{-- Untargeted: the Refresh button reloads by dispatching an event, which commits as
-             `__dispatch` and so never matches wire:target="load". Only for lanes inside a
-             Livewire component — elsewhere nothing ever hides it again. --}}
-        @if ($spinner)
-            <span wire:loading role="status" aria-label="Refreshing"
-                  class="ml-auto size-3 shrink-0 animate-spin rounded-full border border-muted/30 border-t-muted"></span>
-        @endif
+        {{-- One right-aligned group, so the controls hug the edge and the spinner coming and
+             going to their left never moves them. --}}
+        <div class="ml-auto flex min-w-0 items-center gap-2">
+            {{-- Untargeted: the Refresh button reloads by dispatching an event, which commits as
+                 `__dispatch` and so never matches wire:target="load". Only for lanes inside a
+                 Livewire component — elsewhere nothing ever hides it again. --}}
+            @if ($spinner)
+                <span wire:loading role="status" aria-label="Refreshing"
+                      class="size-3 shrink-0 animate-spin rounded-full border border-muted/30 border-t-muted"></span>
+            @endif
+
+            {{ $controls ?? '' }}
+        </div>
     </header>
 
     {{ $slot }}

@@ -5,6 +5,7 @@ use App\Support\GitHub;
 use App\Support\Workspaces;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -40,6 +41,20 @@ new #[Isolate] class extends Component
     public array $played = [];
 
     public ?string $error = null;
+
+    /** What the header's search field holds — free text, GitHub qualifiers, or `#123`. */
+    public string $search = '';
+
+    /**
+     * The search's matches, shown instead of the lists while it's active.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    public array $results = [];
+
+    public bool $resultsTruncated = false;
+
+    public ?string $searchError = null;
 
     /**
      * The last successful lists, rendered with the page itself; `wire:init` then
@@ -92,21 +107,11 @@ new #[Isolate] class extends Component
             $this->other = $keep($other);
             $this->bugs = $keep($bugs);
 
-            $ids = array_flip(array_column($this->issues(), 'id'));
             $this->error = null;
 
-            // An issue that already has a workspace is shown as played: no ▶, no checkbox.
-            // A dead Orca means "no idea", not "nothing has been played", so a failed
-            // lookup keeps the ✓ marks the last good one left rather than caching a run
-            // that has lost every one of them.
-            $workspaces = Workspaces::byRef();
-            $this->played = $workspaces === null ? array_intersect_key($this->played, $ids) : [];
-
-            foreach ($this->issues() as $issue) {
-                if ($workspace = $workspaces[$issue['url']] ?? null) {
-                    $this->played[$issue['id']] = ['status' => $workspace['label']];
-                }
-            }
+            // A refresh refreshes the search too, so its ✓ marks keep up.
+            $this->find();
+            $this->mark();
 
             Cache::forever(self::CACHE, $this->only('assigned', 'other', 'bugs', 'truncated', 'played'));
         } catch (Throwable $exception) {
@@ -116,6 +121,24 @@ new #[Isolate] class extends Component
 
         // Failed or not, the list is as fresh as it gets — the header's "Updated" time.
         $this->dispatch('refreshed');
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->find();
+        $this->mark();
+    }
+
+    /**
+     * Single characters are left alone — they'd only burn the search rate limit —
+     * unless they're an issue number.
+     */
+    #[Computed]
+    public function searching(): bool
+    {
+        $search = trim($this->search);
+
+        return mb_strlen($search) >= 2 || ctype_digit($search);
     }
 
     /**
@@ -172,14 +195,57 @@ new #[Isolate] class extends Component
     }
 
     /**
-     * Every listed issue, in section order — what play() and the workspace lookup
+     * Every listed issue and search result — what play() and the workspace lookup
      * work on.
      *
      * @return array<int, array<string, mixed>>
      */
     private function issues(): array
     {
-        return [...$this->assigned, ...$this->other, ...$this->bugs];
+        return [...$this->assigned, ...$this->other, ...$this->bugs, ...$this->results];
+    }
+
+    /**
+     * Run the search, if there is one. Its failure is its own, so the lists behind it
+     * are unaffected.
+     */
+    private function find(): void
+    {
+        $this->results = [];
+        $this->resultsTruncated = false;
+        $this->searchError = null;
+
+        if (! $this->searching()) {
+            return;
+        }
+
+        try {
+            $found = app(GitHub::class)->searchIssues(trim($this->search));
+
+            $this->results = $found['items'];
+            $this->resultsTruncated = $found['truncated'];
+        } catch (Throwable $exception) {
+            $this->searchError = $exception->getMessage();
+        }
+    }
+
+    /**
+     * An issue that already has a workspace is shown as played: no ▶, no checkbox.
+     * A dead Orca means "no idea", not "nothing has been played", so a failed lookup
+     * keeps the ✓ marks the last good one left rather than caching a run that has
+     * lost every one of them.
+     */
+    private function mark(): void
+    {
+        $ids = array_flip(array_column($this->issues(), 'id'));
+        $workspaces = Workspaces::byRef();
+        $this->played = $workspaces === null ? array_intersect_key($this->played, $ids) : [];
+
+        foreach ($this->issues() as $issue) {
+            if ($workspace = $workspaces[$issue['url']] ?? null) {
+                $this->played[$issue['id']] = ['status' => $workspace['label']];
+            }
+        }
     }
 
     /**
@@ -200,17 +266,35 @@ new #[Isolate] class extends Component
 
 {{-- 300s, not 5m: wire:poll only parses `ms` and `s`, so `.5m` silently polls every 2s. --}}
 <div wire:init="load" wire:poll.300s="load">
-    <x-lane title="Issues" :count="count($assigned) + count($other) + count($bugs)" :truncated="in_array(true, $truncated, true)" spinner>
-        {{-- array_filter, so a list whose query is unset renders no section at all. --}}
-        @foreach (array_filter([
+    <x-lane title="Issues" spinner
+            :count="$this->searching ? count($results) : count($assigned) + count($other) + count($bugs)"
+            :truncated="$this->searching ? $resultsTruncated : in_array(true, $truncated, true)">
+        {{-- In the header, so it's sticky for free. type=search brings the × and Esc to clear;
+             `/` focuses it unless something else is being typed into. The `/` hint steps aside
+             once the field is focused or filled — the native × sits where it would be. --}}
+        <x-slot:controls>
+            <div class="relative flex min-w-0 items-center">
+                <input type="search" wire:model.live.debounce.400ms="search" placeholder="Search issues…" aria-label="Search issues"
+                       x-on:keydown.slash.window="if (! $event.target.closest('input, textarea, [contenteditable]')) { $event.preventDefault(); $el.focus() }"
+                       class="peer h-6 w-44 min-w-0 rounded bg-chip pr-7 pl-2 text-xs not-placeholder-shown:pr-1.5 placeholder:text-muted focus:bg-chip-hover focus:outline-none">
+                <kbd aria-hidden="true"
+                     class="pointer-events-none absolute right-1.5 rounded border border-line px-1 font-mono text-[10px]/4 text-muted peer-focus:hidden peer-[:not(:placeholder-shown)]:hidden">/</kbd>
+            </div>
+        </x-slot:controls>
+
+        {{-- While searching the matches stand in for the lists; array_filter, so a list
+             whose query is unset renders no section at all. --}}
+        @foreach ($this->searching ? [['Results', $results, 'results', 'No issues match.']] : array_filter([
             ['Assigned to me', $assigned, 'assigned', 'Nothing is assigned to you.'],
             config('orchestrator.other_issues') ? ['Other issues', $other, 'other', 'No other issues match.'] : null,
             config('orchestrator.unassigned_bugs') ? ['Unassigned bugs', $bugs, 'bugs', 'No unassigned bugs.'] : null,
         ]) as [$title, $issues, $key, $empty])
             {{-- Only my own issues start open; the extra lists fold away so they're reachable
                  without scrolling past all of them. --}}
-            <x-section :title="$title" :count="count($issues)" :truncated="$truncated[$key] ?? false" :error="$error" :empty="$empty"
-                       :collapsible="$key !== 'assigned'">
+            <x-section :title="$title" :count="count($issues)" :empty="$empty"
+                       :truncated="$key === 'results' ? $resultsTruncated : $truncated[$key] ?? false"
+                       :error="$key === 'results' ? $searchError : $error"
+                       :collapsible="! in_array($key, ['assigned', 'results'], true)">
                 @foreach ($issues as $issue)
                     @php($played = $played[$issue['id']] ?? [])
                     {{-- Fixed number column, so titles line up whatever the number's width. --}}
@@ -220,8 +304,12 @@ new #[Isolate] class extends Component
                         <div class="min-w-0 text-pretty">
                             <a href="{{ $issue['url'] }}" target="_blank" class="[overflow-wrap:anywhere] hover:underline">{{ $issue['title'] }}</a>
 
-                            @if ($issue['labels'] || $played)
+                            @if ($issue['labels'] || $played || ($issue['closed'] ?? false))
                                 <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                    @if ($issue['closed'] ?? false)
+                                        <span class="inline-flex h-[18px] items-center rounded-full bg-white/8 px-1.5 text-[11px] whitespace-nowrap text-muted">closed</span>
+                                    @endif
+
                                     {{-- Neutral chips with the label's colour as a dot, so the labels stay
                                          quieter than the titles whatever colour they happen to be.
                                          Fixed height: an emoji in the name would otherwise make its chip taller. --}}
@@ -266,8 +354,8 @@ new #[Isolate] class extends Component
                         </div>
 
                         {{-- Marks the row leaving so it collapses out, then drops it once the ✓ has
-                             been readable for a beat. --}}
-                        @if ($played['drop'] ?? false)
+                             been readable for a beat. A search result stays: you're still looking at it. --}}
+                        @if (($played['drop'] ?? false) && $key !== 'results')
                             <span x-data x-init="setTimeout(() => { $el.closest('li').classList.add('leaving'); setTimeout(() => $wire.dismiss('{{ $issue['id'] }}'), 250) }, 1250)"></span>
                         @endif
                     </li>

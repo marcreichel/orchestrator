@@ -3,6 +3,7 @@
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Livewire\Livewire;
 
 beforeEach(function () {
     config()->set('orchestrator.repos', ['a/b' => 'repo-1']);
@@ -245,4 +246,96 @@ it('shows the failure instead of the list', function () {
         ->assertSee('401')
         // A failed refresh still ends the header's "Updating…".
         ->assertDispatched('refreshed');
+});
+
+it('searches the open issues of the mapped repos without the lists\' filters', function () {
+    fakeGitHub(assigned: [issueItem(1)], search: [issueItem(7)]);
+
+    loaded('issues')
+        ->set('search', 'label:bug flaky')
+        ->assertCount('results', 1)
+        ->assertSee('Results')
+        ->assertSee('Issue 7')
+        // The results stand in for the lists.
+        ->assertDontSee('Issue 1')
+        ->assertDontSee('Assigned to me');
+
+    Http::assertSent(fn (Request $request): bool => data_get($request->data(), 'q') === '(repo:a/b) is:issue is:open label:bug flaky');
+});
+
+it('brings the lists back once the search is cleared', function () {
+    fakeGitHub(assigned: [issueItem(1)], search: [issueItem(7)]);
+
+    loaded('issues')
+        ->set('search', 'flaky')
+        ->set('search', '')
+        ->assertSet('results', [])
+        ->assertSee('Issue 1')
+        ->assertDontSee('Issue 7');
+});
+
+it('leaves a single character unsearched', function () {
+    fakeGitHub(search: [issueItem(7)]);
+
+    loaded('issues')->set('search', 'f')->assertSet('results', []);
+
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'search/issues') && ! str_contains((string) data_get($request->data(), 'q'), 'is:blocked'));
+});
+
+it('looks a number up directly, closed or not', function () {
+    fakeGitHub(byNumber: [issueItem(9) + ['state' => 'closed']]);
+
+    loaded('issues')
+        ->set('search', '#9')
+        ->assertCount('results', 1)
+        ->assertSee('Issue 9')
+        ->assertSee('closed');
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'repos/a/b/issues/9'));
+});
+
+it('drops a pull request from a number lookup', function () {
+    fakeGitHub(byNumber: [issueItem(9) + ['pull_request' => ['url' => 'x']]]);
+
+    loaded('issues')
+        ->set('search', '9')
+        ->assertSet('results', [])
+        ->assertSee('No issues match.');
+});
+
+it('marks search results that already have a workspace', function () {
+    fakeGitHub(search: [issueItem(7)]);
+
+    fakeOrca([linkedWorktree(7, 'https://github.com/a/b/issues/7')]);
+
+    loaded('issues')
+        ->set('search', 'flaky')
+        ->assertSee('✓ feature/1 · in-progress')
+        ->assertDontSeeHtml('wire:click="play(\'I_7\'');
+});
+
+it('plays a search result and keeps its row', function () {
+    fakeGitHub(search: [issueItem(7)]);
+
+    fakeOrca(created: linkedWorktree(7, 'https://github.com/a/b/issues/7'));
+
+    loaded('issues')
+        ->set('search', 'flaky')
+        ->call('play', 'I_7')
+        ->assertSet('played.I_7.drop', true)
+        ->assertSee('Issue 7')
+        ->assertDontSeeHtml('$wire.dismiss(\'I_7\')');
+});
+
+it('shows a failed search without touching the lists', function () {
+    Cache::forever('orchestrator.issues', ['assigned' => [['id' => 'I_1', 'number' => 1, 'title' => 'Issue 1', 'url' => 'u', 'repo' => 'a/b', 'labels' => []]]]);
+
+    Http::fake(['api.github.com/search/issues*' => Http::response(['message' => 'Rate limited'], 403)]);
+
+    Livewire::test('issues')
+        ->set('search', 'flaky')
+        ->assertSee('Rate limited')
+        ->set('search', '')
+        ->assertSet('error', null)
+        ->assertSee('Issue 1');
 });
