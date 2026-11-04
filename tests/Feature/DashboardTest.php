@@ -19,6 +19,12 @@ it('lays the header out as menu, usage, actions', function () {
         ->assertSeeInOrder(['</nav>', 'wire:name="usage"', 'Refresh'], escape: false);
 });
 
+// The poll throttles while the window is in the background, so coming back to stale lists
+// reloads them.
+it('reloads stale lists when the window regains focus', function () {
+    $this->get('/')->assertSeeHtml('x-on:focus.window="if (at !== null && Date.now() - at > 120000) { at = null; Livewire.dispatch(\'reload\') }"');
+});
+
 // Without the memo Livewire bundles all three loads into one request, so a slow list
 // holds up the others.
 it('isolates every list into its own request', function () {

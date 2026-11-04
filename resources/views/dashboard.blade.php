@@ -11,7 +11,9 @@
              10000ms, not 10s — Alpine parses only `ms` here and silently falls back to
              250ms otherwise, exactly like wire:poll.
              The cached lists paint before anything is fetched, so their age is unknown until
-             the first list reports back — "Updating…" until then, and again after a click. --}}
+             the first list reports back — "Updating…" until then, and again after a click.
+             Coming back to the window reloads once the lists are over two minutes old: the
+             poll throttles in a background tab, so they can be far behind by then. --}}
         <span x-data="{
                   at: null,
                   now: Date.now(),
@@ -23,6 +25,7 @@
               }"
               x-init="setInterval(() => now = Date.now(), 15000)"
               x-on:refreshed.window="at = now = Date.now()"
+              x-on:focus.window="if (at !== null && Date.now() - at > 120000) { at = null; Livewire.dispatch('reload') }"
               class="contents">
             {{-- No room for it on a phone; the Refresh button's tooltip carries it there. --}}
             <span x-text="label" aria-live="polite" class="hidden text-xs text-muted tabular-nums sm:inline">Updating…</span>
