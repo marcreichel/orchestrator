@@ -3,11 +3,20 @@
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
 beforeEach(function () {
     config()->set('app.timezone', 'UTC');
 });
+
+/** The usage component after the LaunchAgent's `usage:refresh` has run. */
+function refreshed(): Testable
+{
+    test()->artisan('usage:refresh');
+
+    return Livewire::test('usage');
+}
 
 function fakeKeychain(?string $token = 'secret'): void
 {
@@ -31,7 +40,7 @@ it('shows the session and weekly usage with the Keychain token', function () {
     fakeKeychain();
     fakeUsage();
 
-    loaded('usage')
+    refreshed()
         ->assertSet('usage.5h.percent', 14)
         ->assertSet('usage.7d.percent', 62)
         ->assertSee('5h resets Wed, Oct 28 3:59 AM')
@@ -48,7 +57,7 @@ it('colours a window amber from 75% and rose from 90%', function () {
     fakeKeychain();
     fakeUsage(session: 75, weekly: 90);
 
-    loaded('usage')
+    refreshed()
         ->assertSeeHtml('<span class="text-amber">75%</span>')
         ->assertSeeHtml('<span class="text-rose">90%</span>')
         ->assertSeeHtml('bg-current text-amber" style="width: 75%"')
@@ -59,7 +68,7 @@ it('caps the bar at full width when a window runs over', function () {
     fakeKeychain();
     fakeUsage(session: 104);
 
-    loaded('usage')
+    refreshed()
         ->assertSee('104%')
         ->assertSeeHtml('style="width: 100%"');
 });
@@ -69,7 +78,7 @@ it('keeps the last numbers and marks them stale when the token has expired', fun
     fakeKeychain();
     fakeUsage(status: 401);
 
-    loaded('usage')
+    refreshed()
         ->assertSet('usage.5h.percent', 40)
         ->assertSee('40%')
         ->assertSee('Stale:')
@@ -80,7 +89,7 @@ it('shows a dash when there is no Claude Code login and nothing cached', functio
     fakeKeychain(token: null);
     Http::fake();
 
-    loaded('usage')
+    refreshed()
         ->assertSet('usage', [])
         ->assertSet('error', 'No Claude Code login in the Keychain')
         ->assertSee('—');
@@ -88,10 +97,35 @@ it('shows a dash when there is no Claude Code login and nothing cached', functio
     Http::assertNothingSent();
 });
 
-it('renders the cached numbers before fetching', function () {
-    Cache::forever('orchestrator.usage', ['usage' => ['5h' => ['percent' => 33, 'resetsAt' => null]]]);
+it('only reads the cache and never touches the Keychain or the API itself', function () {
+    Cache::forever('orchestrator.usage', ['usage' => ['5h' => ['percent' => 33, 'resetsAt' => null]], 'refreshedAt' => now()->toIso8601String()]);
+    Process::fake();
+    Http::fake();
 
-    Livewire::test('usage')->assertSee('33%');
+    Livewire::test('usage')->call('load')
+        ->assertSee('33%')
+        ->assertSet('error', null);
+
+    Process::assertNothingRan();
+    Http::assertNothingSent();
+});
+
+it('marks the numbers stale once the refresh stops running', function () {
+    $this->travelTo('2026-10-28T10:00:00+00:00');
+    fakeKeychain();
+    fakeUsage();
+    $this->artisan('usage:refresh');
+
+    $this->travel(16)->minutes();
+
+    Livewire::test('usage')
+        ->assertSee('14%')
+        ->assertSee('Stale: Not refreshed since Wed, Oct 28 10:00 AM')
+        ->assertSeeHtml('opacity-50');
+});
+
+it('marks the numbers stale when they were never refreshed', function () {
+    Livewire::test('usage')->assertSet('error', 'Never refreshed — is the usage:refresh LaunchAgent loaded?');
 });
 
 it('forecasts where a window lands at its reset and flags one on pace to run out', function () {
@@ -103,7 +137,7 @@ it('forecasts where a window lands at its reset and flags one on pace to run out
         'seven_day' => ['utilization' => 10, 'resets_at' => '2026-10-29T01:59:59+00:00'],
     ])]);
 
-    loaded('usage')
+    refreshed()
         ->assertSee('→150%')
         ->assertDontSee('→12%')
         ->assertSee('on pace for 12%');
@@ -117,5 +151,5 @@ it('skips the forecast in the first tenth of a window', function () {
         'seven_day' => ['utilization' => 1, 'resets_at' => '2026-11-04T00:10:00+00:00'],
     ])]);
 
-    loaded('usage')->assertDontSee('on pace');
+    refreshed()->assertDontSee('on pace');
 });

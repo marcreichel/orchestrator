@@ -1,6 +1,5 @@
 <?php
 
-use App\Support\Claude;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Isolate;
@@ -17,27 +16,28 @@ new #[Isolate] class extends Component
 
     public ?string $error = null;
 
-    /** Cached numbers first, live ones via `wire:init` — see the issues component. */
     public function mount(): void
     {
-        $this->fill(Cache::get(self::CACHE) ?? []);
+        $this->load();
     }
 
     /**
-     * A failure keeps the last numbers on screen and only marks them stale — an expired
-     * token is routine (it lasts until Claude Code next runs), not worth blanking over.
+     * Only ever the cache: `usage:refresh` fetches from the login session, because php-fpm
+     * can't read the Keychain token. If that stops running, the numbers would freeze
+     * looking current, so past 15 minutes they're marked stale.
      */
     #[On('reload')]
     public function load(): void
     {
-        try {
-            $this->usage = Claude::usage();
-            $this->error = null;
+        $cached = Cache::get(self::CACHE) ?? [];
+        $refreshedAt = $cached['refreshedAt'] ?? null;
 
-            Cache::forever(self::CACHE, $this->only('usage'));
-        } catch (Throwable $exception) {
-            $this->error = $exception->getMessage();
-        }
+        $this->usage = $cached['usage'] ?? [];
+        $this->error = $cached['error'] ?? match (true) {
+            ! $refreshedAt => 'Never refreshed — is the usage:refresh LaunchAgent loaded?',
+            Carbon::parse($refreshedAt)->lt(now()->subMinutes(15)) => 'Not refreshed since '.$this->resetTime($refreshedAt),
+            default => null,
+        };
     }
 
     /** The reset as a clock time for the tooltip; the countdown is the browser's. */
@@ -81,7 +81,7 @@ new #[Isolate] class extends Component
      won't parse (an old cache entry) shows nothing until the next load. They only fit
      from lg, where the header has room to spare. --}}
 @php($tooltip = collect($usage)->map(fn (array $window, string $label): string => "{$label} resets ".$this->resetTime($window['resetsAt']).(($pace = $this->forecast($label, $window)) !== null ? ", on pace for {$pace}%" : ''))->push($error ? "Stale: {$error}" : null)->filter()->implode("\n"))
-<div wire:init="load" wire:poll.300s="load"
+<div wire:poll.300s="load"
      x-data="{
          now: Date.now(),
          left(at) {
